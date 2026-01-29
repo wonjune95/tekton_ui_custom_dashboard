@@ -3,10 +3,6 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/tektoncd/dashboard/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/tektoncd/dashboard)](https://goreportcard.com/report/tektoncd/dashboard)
 
-<p align="center">
-  <img src="tekton-dashboard-color.svg" alt="Tekton Dashboard logo" width="200" />
-</p>
-
 Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와 [Tekton Triggers](https://github.com/tektoncd/triggers) 리소스를 관리하기 위한 범용 웹 기반 UI입니다.
 
 **이 저장소는 공식 Tekton Dashboard를 기반으로, 운영 효율성과 사용자 편의를 위해 주요 기능을 커스터마이징한 버전입니다.**
