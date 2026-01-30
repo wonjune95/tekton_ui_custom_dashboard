@@ -292,9 +292,9 @@ function DonutChart({ title, data, onSegmentClick }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [hoveredData, setHoveredData] = useState(null);
 
-    const size = 180;
-    const r = 62;
-    const stroke = 24;
+    const size = 200;
+    const r = 68;
+    const stroke = 28;
     
     const C = useMemo(() => 2 * Math.PI * r, []); 
     const total = data.reduce((s, d) => s + d.value, 0);
@@ -338,8 +338,22 @@ function DonutChart({ title, data, onSegmentClick }) {
 
     if (!total) {
         return (
-            <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#525252' }}>{title}</h3>
+            <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                width: '100%' 
+            }}>
+                <h3 style={{ 
+                    margin: '0 0 12px 0',
+                    fontSize: '0.9rem', 
+                    color: '#525252',
+                    fontWeight: 600,
+                    alignSelf: 'flex-start',
+                    width: '100%' 
+                }}>
+                    {title}
+                </h3>
                 {renderSvg(null, { muted: true })}
                 <span style={{ marginTop: 8, color: '#8d8d8d', fontSize: '0.9rem' }}>데이터 없음</span>
             </div>
@@ -350,9 +364,10 @@ function DonutChart({ title, data, onSegmentClick }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
             
+            {/* 데이터가 있을 때 제목 */}
             <h3 style={{ 
                 margin: '0 0 12px 0', 
-                fontSize: '0.9rem',
+                fontSize: '0.9rem', 
                 color: '#525252',
                 fontWeight: 600, 
                 alignSelf: 'flex-start' 
@@ -421,7 +436,7 @@ function DonutChart({ title, data, onSegmentClick }) {
             {isExpanded && (
                 <div style={{ 
                     display: 'grid', 
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', 
                     gap: '8px 10px',
                     width: '100%',
                     marginTop: 12,
