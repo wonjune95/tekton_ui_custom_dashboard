@@ -286,14 +286,22 @@ function usePipelineStats() {
 
 
 /* =========================
-    순수 SVG 도넛차트
-    ========================= */
-function DonutChart({ title, data }) {
-    const size = 200;
-    const r = 68;
-    const stroke = 28;
+          SVG 도넛차트
+   ========================= */
+function DonutChart({ title, data, onSegmentClick }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [hoveredData, setHoveredData] = useState(null);
+
+    const size = 180;
+    const r = 62;
+    const stroke = 24;
+    
     const C = useMemo(() => 2 * Math.PI * r, []); 
     const total = data.reduce((s, d) => s + d.value, 0);
+
+    const centerValue = hoveredData ? hoveredData.value : total;
+    const centerLabel = hoveredData ? hoveredData.label : 'Total';
+    const centerColor = hoveredData ? hoveredData.color : '#333';
 
     const renderSvg = (children, { muted = false } = {}) => (
         <svg
@@ -314,10 +322,15 @@ function DonutChart({ title, data }) {
                 <text
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fontSize="22"
-                    fontWeight="700"
+                    fill={centerColor}
+                    style={{ pointerEvents: 'none', transition: 'fill 0.2s' }}
                 >
-                    {total}
+                    <tspan x="0" dy="-6" fontSize="28" fontWeight="700">
+                        {centerValue}
+                    </tspan>
+                    <tspan x="0" dy="24" fontSize="12" fill="#6f6f6f" fontWeight="500">
+                        {centerLabel.length > 12 ? centerLabel.slice(0, 10) + '..' : centerLabel}
+                    </tspan>
                 </text>
             </g>
         </svg>
@@ -325,20 +338,29 @@ function DonutChart({ title, data }) {
 
     if (!total) {
         return (
-            <div style={{ display: 'flex', gap: 16 }}>
-                <div>
-                    <h3 style={{ margin: '0 0 12px 0' }}>{title}</h3>
-                    {renderSvg(null, { muted: true })}
-                </div>
+            <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#525252' }}>{title}</h3>
+                {renderSvg(null, { muted: true })}
+                <span style={{ marginTop: 8, color: '#8d8d8d', fontSize: '0.9rem' }}>데이터 없음</span>
             </div>
         );
     }
 
     let offset = 0;
     return (
-        <div style={{ display: 'flex', gap: 16 }}>
-            <div>
-                <h3 style={{ margin: '0 0 12px 0' }}>{title}</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            
+            <h3 style={{ 
+                margin: '0 0 12px 0', 
+                fontSize: '0.9rem',
+                color: '#525252',
+                fontWeight: 600, 
+                alignSelf: 'flex-start' 
+            }}>
+                {title}
+            </h3>
+
+            <div style={{ marginBottom: 12 }}>
                 {renderSvg(
                     data.map(seg => {
                         const pct = seg.value / total;
@@ -353,8 +375,16 @@ function DonutChart({ title, data }) {
                                 strokeDasharray={`${len} ${C - len}`}
                                 strokeDashoffset={-offset}
                                 transform="rotate(-90)"
+                                onClick={() => onSegmentClick && onSegmentClick(seg.link)}
+                                onMouseEnter={() => setHoveredData(seg)}
+                                onMouseLeave={() => setHoveredData(null)}
+                                style={{ 
+                                    cursor: 'pointer', 
+                                    transition: 'stroke-width 0.2s, opacity 0.2s',
+                                    opacity: (hoveredData && hoveredData.label !== seg.label) ? 0.3 : 1
+                                }}
                             >
-                                <title>{`${seg.label}: ${seg.value} (${Math.round(pct * 100)}%)`}</title>
+                                <title>{`${seg.label}: ${seg.value}`}</title>
                             </circle>
                         );
                         offset += len;
@@ -362,16 +392,79 @@ function DonutChart({ title, data }) {
                     })
                 )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 28 }}>
-                {data.map(d => (
-                    <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ width: 12, height: 12, borderRadius: 3, background: d.color, display: 'inline-block' }} />
-                        <span style={{ fontSize: 14 }}>
-                            {d.label} <span style={{ color: '#6f6f6f' }}>({d.value})</span>
-                        </span>
-                    </div>
-                ))}
-            </div>
+
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#0f62fe',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '6px 12px',
+                    borderRadius: 4,
+                }}
+                onMouseEnter={(e) => e.target.style.background = '#edf5ff'}
+                onMouseLeave={(e) => e.target.style.background = 'none'}
+            >
+                {isExpanded ? '접기' : '상세 목록 보기'} 
+                <span style={{ 
+                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', 
+                    transition: 'transform 0.2s',
+                    fontSize: '0.8rem' 
+                }}>▼</span>
+            </button>
+
+            {isExpanded && (
+                <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                    gap: '8px 10px',
+                    width: '100%',
+                    marginTop: 12,
+                    paddingTop: 12,
+                    borderTop: '1px solid #e0e0e0',
+                    animation: 'fadeIn 0.3s ease-in-out'
+                }}>
+                    {data.map(d => (
+                        <div 
+                            key={d.label} 
+                            style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 6, 
+                                cursor: 'pointer',
+                                padding: '4px 6px',
+                                borderRadius: 4
+                            }}
+                            onClick={() => onSegmentClick && onSegmentClick(d.link)}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = '#f4f4f4';
+                                setHoveredData(d);
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent';
+                                setHoveredData(null);
+                            }}
+                        >
+                            <span style={{ 
+                                width: 8, height: 8, borderRadius: '50%',
+                                background: d.color, display: 'inline-block', flexShrink: 0
+                            }} />
+                            <span style={{ 
+                                fontSize: '0.8rem', color: '#393939',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                            }}>
+                                {d.label} <span style={{ color: '#888' }}>({d.value})</span>
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }`}</style>
         </div>
     );
 }
