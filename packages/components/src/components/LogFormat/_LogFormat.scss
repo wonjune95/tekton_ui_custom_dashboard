@@ -1,0 +1,160 @@
+/*
+Copyright 2020-2025 The Tekton Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+@use '@carbon/react/scss/spacing' as *;
+
+$colors: (
+  "black": rgb(0, 0, 0),
+  "red": rgb(187, 0, 0),
+  "green": rgb(0, 187, 0),
+  "yellow": rgb(187, 187, 0),
+  "blue": rgb(85, 85, 255),
+  "magenta": rgb(187, 0, 187),
+  "cyan": rgb(0, 187, 187),
+  "white": rgb(187, 187, 187),
+
+  "bright-black": rgb(85, 85, 85),
+  "bright-red": rgb(255, 85, 85),
+  "bright-green": rgb(0, 255, 0),
+  "bright-yellow": rgb(255, 255, 85),
+  "bright-blue": rgb(136, 136, 255),
+  "bright-magenta": rgb(255, 85, 255),
+  "bright-cyan": rgb(85, 255, 255),
+  "bright-white": rgb(255, 255, 255)
+);
+
+.tkn--ansi--color-fg- {
+  @each $name, $value in $colors {
+    &-#{$name} {
+      color: $value;
+    }
+  }
+}
+
+.tkn--ansi--color-bg- {
+  @each $name, $value in $colors {
+    &-#{$name} {
+      background-color: $value;
+    }
+  }
+}
+
+.tkn--ansi--text- {
+  &-bold {
+    font-weight: bold;
+  }
+
+  &-italic {
+    font-style: italic;
+  }
+
+  &-conceal {
+    color: transparent;
+  }
+
+  &-underline {
+    text-decoration: underline;
+  }
+
+  &-cross {
+    text-decoration: line-through;
+  }
+}
+
+.tkn--log-line {
+  min-block-size: 1rem; // explicitly set height to hold space for empty log line when timestamps disabled
+  transition: 0s background-color;
+  &:hover {
+    background-color: #ffffff10;
+    transition-delay: 0.5s;
+  }
+
+  // set default colours for the log level badge, this will be used for 'info'
+  --tkn-log-level-badge-background: var(--cds-tag-background-gray);
+  --tkn-log-level-badge-color: var(--cds-text-primary);
+
+  &.tkn--log-level--error {
+    --tkn-log-level-badge-background: rgb(from var(--cds-tag-background-red) r g b / 80%);
+    --tkn-log-level-badge-color: var(--cds-tag-color-red);
+
+    background-color: rgb(from var(--cds-support-error-inverse) r g b / 15%);
+
+    &:hover {
+      background-color: rgb(from var(--cds-support-error-inverse) r g b / 30%);
+    }
+  }
+
+  &.tkn--log-level--warning {
+    --tkn-log-level-badge-background: rgb(from var(--cds-support-warning) r g b / 35%);
+
+    background-color: rgb(from var(--cds-support-warning-inverse) r g b / 15%);
+
+    &:hover {
+      background-color: rgb(from var(--cds-support-warning-inverse) r g b / 30%);
+    }
+  }
+
+  &.tkn--log-level--notice {
+    --tkn-log-level-badge-background: var(--cds-tag-background-teal);
+    --tkn-log-level-badge-color: var(--cds-tag-color-teal);
+  }
+
+  &.tkn--log-level--debug {
+    --tkn-log-level-badge-background: rgb(from var(--cds-tag-background-purple) r g b / 60%);
+    --tkn-log-level-badge-color: var(--cds-tag-color-purple);
+  }
+
+  .tkn--log-line--timestamp {
+    color: var(--cds-text-helper);
+    font-weight: 300;
+  }
+
+  &.tkn--log-line--group {
+    details {
+      display: inline-block;
+    }
+  }
+
+  &.tkn--log-line--in-group {
+    // indent log content inside an expanded group
+    // account for lines with no explicit log level
+    .tkn--log-line--level,
+    .tkn--log-line--content {
+      margin-inline-start: $spacing-03;
+    }
+
+    // reset for lines with log level so we only apply indent on log level
+    .tkn--log-line--level + .tkn--log-line--content {
+      margin-inline-start: 0;
+    }
+  }
+
+  .tkn--log-line--level {
+    display: inline-block;
+    padding-inline: $spacing-02;
+    background-color: var(--tkn-log-level-badge-background);
+    color: var(--tkn-log-level-badge-color);
+  }
+}
+
+// only add margin after timestamp if there's at least one log line with a
+// visible timestamp so we don't add unnecessary space when 'Show timestamps' is
+// enabled but for some reason there are no timestamps to show (maybe external
+// logs that didn't capture timestamps at runtime)
+.tkn--log:has(.tkn--log-line--timestamp:not(:empty)) .tkn--log-line--timestamp {
+  margin-inline-end: $spacing-01;
+}
+
+.tkn--log-line--level {
+  margin-inline-end: $spacing-01;
+}

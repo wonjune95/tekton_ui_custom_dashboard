@@ -1,0 +1,52 @@
+{
+  "name": "@tektoncd/dashboard-components",
+  "version": "0.61.0-alpha.4",
+  "author": {
+    "name": "The Tekton Authors"
+  },
+  "keywords": [
+    "tekton",
+    "tektoncd",
+    "components",
+    "react"
+  ],
+  "license": "Apache-2.0",
+  "private": false,
+  "main": "./src/components/index.js",
+  "type": "module",
+  "scripts": {
+    "prepublishOnly": "npm pkg set \"dependencies.@tektoncd/dashboard-utils=$npm_package_version\"",
+    "postpublish": "npm pkg set \"dependencies.@tektoncd/dashboard-utils=file:../utils\""
+  },
+  "dependencies": {
+    "@tektoncd/dashboard-utils": "file:../utils",
+    "js-yaml": "^4.1.0",
+    "linkify-it": "^5.0.0",
+    "prop-types": "^15.7.2",
+    "react-intl-formatted-duration": "^4.0.0",
+    "react-window": "^1.8.11",
+    "tlds": "^1.259.0"
+  },
+  "peerDependencies": {
+    "@carbon/react": "^1.65.0",
+    "react": "^16.14.0 || ^17.0.2",
+    "react-dom": "^16.14.0 || ^17.0.2",
+    "react-intl": "^7.0.1",
+    "react-router-dom": "^5.0.0 || ^6.0.0"
+  },
+  "engines": {
+    "node": "^20.18.0",
+    "npm": "^10.8.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": [
+    "*.scss"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tektoncd/dashboard.git",
+    "directory": "packages/components"
+  }
+}

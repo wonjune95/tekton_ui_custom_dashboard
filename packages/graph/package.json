@@ -1,0 +1,51 @@
+{
+  "name": "@tektoncd/dashboard-graph",
+  "version": "0.61.0-alpha.4",
+  "author": {
+    "name": "The Tekton Authors"
+  },
+  "keywords": [
+    "tekton",
+    "tektoncd",
+    "components",
+    "graph",
+    "visualization",
+    "react"
+  ],
+  "license": "Apache-2.0",
+  "private": false,
+  "main": "./src/index.js",
+  "type": "module",
+  "scripts": {
+    "prepublishOnly": "npm pkg set \"dependencies.@tektoncd/dashboard-utils=$npm_package_version\"",
+    "postpublish": "npm pkg set \"dependencies.@tektoncd/dashboard-utils=file:../utils\""
+  },
+  "dependencies": {
+    "@carbon/charts-react": "^1.23.17",
+    "@tektoncd/dashboard-utils": "file:../utils",
+    "@visx/event": "^3.12.0",
+    "@visx/network": "^3.12.0",
+    "d3-path": "^3.1.0",
+    "elkjs": "^0.10.0"
+  },
+  "peerDependencies": {
+    "@carbon/react": "^1.68.0",
+    "react": "^16.14.0 || ^17.0.2",
+    "react-intl": "^7.0.1"
+  },
+  "engines": {
+    "node": "^20.18.0",
+    "npm": "^10.8.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": [
+    "*.scss"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tektoncd/dashboard.git",
+    "directory": "packages/graph"
+  }
+}
