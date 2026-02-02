@@ -37,7 +37,7 @@ Tekton Dashboard는 기본적으로 다음과 같은 기능을 제공합니다.
 - Git 리포지토리에서 리소스 직접 가져오기 (Import)
 - 확장 프로그램(Extensions)을 통한 기능 추가
 
-<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/d3b0f54b-a6c4-49b5-9bef-9256dce77cd8" />
+<img width="1919" height="1079" alt="스크린샷 2026-02-02 204208" src="https://github.com/user-attachments/assets/dcb26ed3-0aeb-498d-b4dd-bb15dffe3178" />
 
 ## 문서 및 가이드
 
