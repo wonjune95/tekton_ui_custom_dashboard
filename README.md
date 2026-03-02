@@ -15,7 +15,7 @@ Tekton Dashboard는 [Tekton Pipelines](https://www.google.com/search?q=https://g
 * **기존:** 네임스페이스 내의 개별 PipelineRun 리소스 상태만 확인 가능.
 * **변경:** 커스텀 큐 컨트롤러 및 `GlobalLimit` CRD와 연동하여, **클러스터 전체의 파이프라인 동시 실행 쿼터(Limit) 및 대기열(Pending Queue) 현황을 시각적으로 모니터링**할 수 있는 전용 뷰를 추가했습니다. 시스템 과부하 상태와 스케줄링 대기 순번을 한눈에 파악할 수 있습니다.
 <img width="1901" height="908" alt="스크린샷 2026-03-02 190526" src="https://github.com/user-attachments/assets/db32c0ce-2721-46b9-883a-c32e557d5e8a" />
-🔗 [wonjune95/tekton_queue_controller]([https://github.com/wonjune95/tekton_queue_contoller])
+🔗 [[wonjune95/tekton_queue_controller]([https://github.com/wonjune95/tekton_queue_contoller])](https://github.com/wonjune95/tekton_queue_contoller.git)
 
 ### 2. 파이프라인 재시작 로직 개선 (Smart Restart)
 
