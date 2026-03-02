@@ -25,7 +25,7 @@ import tektonLogo from '../../images/tekton-dashboard-color.svg';
 
 /* =========================
     공통: 경로 유틸 + 안전 fetch
-    ========================= */
+   ========================= */
 const PROXY_BASES = [
     'proxy',
     'v1/proxy',
@@ -42,15 +42,14 @@ async function safeGetJSON(url) {
     try {
         const res = await fetch(url, {
             credentials: 'same-origin',
+            cache: 'no-store',
             headers: { Accept: 'application/json' }
         });
         let data = null;
         try { data = await res.json(); } catch { data = null; }
-        // eslint-disable-next-line no-console
         console.debug('[About.jsx] GET', url, '→', res.status, data?.items?.length ?? (Array.isArray(data) ? data.length : '-'));
         return { ok: res.ok, status: res.status, data, tried: url };
     } catch (e) {
-        // eslint-disable-next-line no-console
         console.debug('[About.jsx] GET FAIL', url, e?.message);
         return { ok: false, status: 0, data: null, tried: url };
     }
@@ -58,7 +57,7 @@ async function safeGetJSON(url) {
 
 /* =========================
     데이터 수집 유틸
-    ========================= */
+   ========================= */
 async function listNamespaces() {
     for (const base of PROXY_BASES) {
         const url = join(base, 'api/v1/namespaces');
@@ -115,10 +114,24 @@ async function listAllPipelineRuns(nsList) {
     return all;
 }
 
+async function fetchGlobalLimit() {
+    for (const base of PROXY_BASES) {
+        const url = join(base, 'apis/tekton.devops/v1/globallimits/tekton-queue-limit?resourceVersion=0');
+        const r = await safeGetJSON(url);
+        
+        if (r.ok && r.data?.spec?.maxPipelines !== undefined) {
+            const limit = r.data.spec.maxPipelines;
+            if (typeof limit === 'number') {
+                return limit;
+            }
+        }
+    }
+    return 10;
+}
 
 /* =========================
     커스텀 훅: 파이프라인 통계
-    ========================= */
+   ========================= */
 const PALETTE = [
     // 1~10: 기본 강조 색상 (Vivid & Distinct)
     '#4E79A7', '#F28E2B', '#59A14F', '#E15759', '#76B7B2', 
@@ -141,7 +154,6 @@ const PALETTE = [
     '#E7969C', '#7B4173', '#A55194', '#CE6DBD', '#DE9ED6'
 ];
 
-// 네임스페이스 이름의 해시 값 기반으로 색상 인덱스 계산 (13개 이상일 때 사용)
 function getHashColor(ns) {
     const idx = Math.abs([...ns].reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)) % PALETTE.length;
     return PALETTE[idx];
@@ -155,7 +167,8 @@ function usePipelineStats() {
     const [namespaces, setNamespaces] = useState([]);
     const [countsByNS, setCountsByNS] = useState({});
     
-    // 네트워킹 동시 호출 방지용 Ref
+    const [maxConcurrency, setMaxConcurrency] = useState(20);
+
     const loadingRef = useRef(false);
     const firstLoadRef = useRef(true);
 
@@ -164,7 +177,6 @@ function usePipelineStats() {
         setReloadKey(k => k + 1);
     };
 
-    // 자동 새로고침 (기존 로직 유지)
     const [autoRefreshMs, setAutoRefreshMs] = useState(() => {
         if (typeof window === 'undefined') return 10000;
         const v = localStorage.getItem('about:autoRefreshMs');
@@ -177,29 +189,24 @@ function usePipelineStats() {
         }
     }, [autoRefreshMs]);
 
-    // 💡 useMemo를 사용하여 네임스페이스 목록에 기반한 색상 맵 생성 (겹침 방지 로직)
     const NS_COLOR_MAP = useMemo(() => {
         const newMap = {};
         for (let i = 0; i < namespaces.length; i++) {
             const ns = namespaces[i];
             
             if (i < PALETTE.length) {
-                // 네임스페이스가 12개 이하일 경우, 순차적으로 팔레트 색상을 할당하여 겹침 방지
                 newMap[ns] = PALETTE[i];
             } else {
-                // 12개를 초과할 경우, 해시 충돌 가능성이 있지만 분산을 위해 해시 기반 색상 할당
                 newMap[ns] = getHashColor(ns);
             }
         }
         return newMap;
-    }, [namespaces]); // namespaces 목록이 변경될 때만 재계산
+    }, [namespaces]);
 
-    // 💡 About 컴포넌트가 사용할 네임스페이스 색상 조회 함수
     const colorByNS = (ns) => {
         return NS_COLOR_MAP[ns] || getHashColor(ns); 
     };
 
-    // 데이터 로드 (처음만 loading, 그 이후는 refreshing)
     useEffect(() => {
         let alive = true;
         (async () => {
@@ -208,31 +215,38 @@ function usePipelineStats() {
             loadingRef.current = true;
 
             try {
+                const dynamicLimit = await fetchGlobalLimit();
+                if (alive && dynamicLimit !== null) setMaxConcurrency(dynamicLimit);
+
                 const nsList = await listNamespaces();
                 if (!alive) return;
                 
-                // 네임스페이스 목록 업데이트 (colorByNS useMemo 트리거)
                 setNamespaces(nsList); 
                 
                 const prs = await listAllPipelineRuns(nsList);
                 if (!alive) return;
 
                 const counts = {};
-                for (const ns of nsList) counts[ns] = { pending: 0, running: 0, recent: 0 };
+                for (const ns of nsList) counts[ns] = { pending: 0, queued: 0, running: 0, recent: 0 };
                 const threshold = Date.now() - 12 * 60 * 60 * 1000;
 
                 for (const pr of prs) {
                     const prNS = pr?.metadata?.namespace || 'default';
-                    // 네임스페이스 목록에 있는 것만 집계 (listNamespaces에서 이미 *-cicd 필터링됨)
                     if (!nsList.includes(prNS)) continue; 
                     
-                    if (!counts[prNS]) counts[prNS] = { pending: 0, running: 0, recent: 0 };
+                    if (!counts[prNS]) counts[prNS] = { pending: 0, queued: 0, running: 0, recent: 0 };
 
                     const { reason = '', status = '' } = getStatus(pr) || {};
+                    const isManaged = pr?.metadata?.labels?.['queue.tekton.dev/managed'] === 'yes';
+
                     if (isRunning(reason, status)) {
                         counts[prNS].running += 1;
                     } else if (isPending(reason, status)) {
-                        counts[prNS].pending += 1;
+                        if (isManaged) {
+                            counts[prNS].queued += 1;
+                            } else {
+                                counts[prNS].pending += 1;
+                                }
                     }
 
                     const ts = pr?.status?.startTime ? Date.parse(pr.status.startTime) : 0;
@@ -253,7 +267,6 @@ function usePipelineStats() {
         return () => { alive = false; };
     }, [reloadKey]);
 
-    // 자동 새로고침 타이머 (기존 로직 유지)
     useEffect(() => {
         if (!autoRefreshMs) return;
         const tick = () => {
@@ -280,7 +293,8 @@ function usePipelineStats() {
         handleRefresh,
         autoRefreshMs,
         setAutoRefreshMs,
-        isLoadingOrRefreshing: loadingRef.current
+        isLoadingOrRefreshing: loadingRef.current,
+        maxConcurrency
     };
 }
 
@@ -364,7 +378,6 @@ function DonutChart({ title, data, onSegmentClick }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
             
-            {/* 데이터가 있을 때 제목 */}
             <h3 style={{ 
                 margin: '0 0 12px 0', 
                 fontSize: '0.9rem', 
@@ -485,8 +498,8 @@ function DonutChart({ title, data, onSegmentClick }) {
 }
 
 /* =========================
-    About (최종 리팩토링)
-    ========================= */
+    About
+   ========================= */
 export function About() {
     const intl = useIntl();
     const carbonPrefix = usePrefix();
@@ -513,7 +526,8 @@ export function About() {
         countsByNS,
         colorByNS,
         handleRefresh,
-        isLoadingOrRefreshing
+        isLoadingOrRefreshing,
+        maxConcurrency
     } = usePipelineStats();
     
     const [selectedNS, setSelectedNS] = useState('ALL');
@@ -565,8 +579,11 @@ export function About() {
             .filter(d => d.value > 0);
     };
 
+    const totalRunning = Object.values(countsByNS).reduce((sum, ns) => sum + (ns.running || 0), 0);
+    const totalQueued = Object.values(countsByNS).reduce((sum, ns) => sum + (ns.queued || 0), 0);
+
     const refreshButtonText = isLoadingOrRefreshing
-        ? intl.formatMessage({ id: 'dashboard.about.refreshing', defaultMessage: '새로고침 중...' })
+        ? intl.formatMessage({ id: 'dashboard.about.refreshing', defaultMessage: '새로고침' })
         : intl.formatMessage({ id: 'dashboard.about.refresh', defaultMessage: '새로고침' });
         
     const spinStyle = {
@@ -668,9 +685,30 @@ export function About() {
                     )}
                 </Tile>
 
-                <Tile style={{ paddingBottom: '1rem' }}>
+                <Tile style={{ paddingBottom: '1rem', position: 'relative' }}>
                     {loading ? <SkeletonText paragraph /> : (
-                        <DonutChart title="실행 중 파이프라인" data={buildData('running')} />
+                        <>
+                            <div style={{ 
+                                position: 'absolute', 
+                                top: '1rem', 
+                                right: '1rem', 
+                                background: (totalRunning >= maxConcurrency || totalQueued > 0) ? '#da1e28' : '#e0e0e0',
+                                color: (totalRunning >= maxConcurrency || totalQueued > 0) ? '#fff' : '#161616',
+                                padding: '4px 8px', 
+                                borderRadius: '12px', 
+                                fontSize: '0.75rem', 
+                                fontWeight: 'bold',
+                                zIndex: 1,
+                                display: 'flex',
+                                gap: '6px'
+                            }}>
+                                <span>동작: {totalRunning} / {maxConcurrency}</span>
+                                {totalQueued > 0 && (
+                                    <span>| 대기열: {totalQueued}</span>
+                                )}
+                            </div>
+                            <DonutChart title="실행 중 파이프라인" data={buildData('running')} />
+                        </>
                     )}
                 </Tile>
 
