@@ -10,24 +10,17 @@ Tekton Dashboard는 [Tekton Pipelines](https://www.google.com/search?q=https://g
 
 이 커스텀 버전에는 다음과 같은 기능이 수정 및 추가되었습니다.
 
-### 1. 글로벌 대기열(Global Queue) 모니터링 통합
-
-* **기존:** 네임스페이스 내의 개별 PipelineRun 리소스 상태만 확인 가능.
-* **변경:** 커스텀 큐 컨트롤러 및 `GlobalLimit` CRD와 연동하여, **클러스터 전체의 파이프라인 동시 실행 쿼터(Limit) 및 대기열(Pending Queue) 현황을 시각적으로 모니터링**할 수 있는 전용 뷰를 추가했습니다. 시스템 과부하 상태와 스케줄링 대기 순번을 한눈에 파악할 수 있습니다.
-<img width="1901" height="908" alt="스크린샷 2026-03-02 190526" src="https://github.com/user-attachments/assets/db32c0ce-2721-46b9-883a-c32e557d5e8a" />
-🔗 https://github.com/wonjune95/tekton_queue_contoller.git
-
-### 2. 파이프라인 재시작 로직 개선 (Smart Restart)
+### 1. 파이프라인 재시작 로직 개선 (Smart Restart)
 
 * **기존:** 'Start' 버튼 클릭 시 기존 리소스를 단순히 재실행.
 * **변경:** 'Start' 버튼 클릭 시, 기존 설정을 기반으로 **새로운 PipelineRun 리소스를 생성**하여 실행합니다. 이를 통해 실행 이력을 보존하고 충돌 없이 즉시 재작업을 수행할 수 있습니다.
 
-### 3. 검색 기능 직관화 (Basic Search)
+### 2. 검색 기능 직관화 (Basic Search)
 
 * **기존:** Label 기반의 Key-Value 검색 방식.
 * **변경:** 사용자가 더 쉽게 접근할 수 있도록 **일반 텍스트(키워드) 기반 검색** 방식으로 변경했습니다. 복잡한 셀렉터 문법 없이 이름이나 키워드로 리소스를 찾을 수 있습니다.
 
-### 4. 파이프라인 종합 현황판 (Pipeline Status View)
+### 3. 파이프라인 종합 현황판 (Pipeline Status View)
 
 * 전체 파이프라인의 실행 상태와 성공/실패 여부를 한눈에 파악할 수 있는 **시각화된 현황 대시보드**를 추가했습니다.
 

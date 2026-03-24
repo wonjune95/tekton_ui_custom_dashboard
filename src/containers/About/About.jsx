@@ -114,20 +114,7 @@ async function listAllPipelineRuns(nsList) {
     return all;
 }
 
-async function fetchGlobalLimit() {
-    for (const base of PROXY_BASES) {
-        const url = join(base, 'apis/tekton.devops/v1/globallimits/tekton-queue-limit?resourceVersion=0');
-        const r = await safeGetJSON(url);
-        
-        if (r.ok && r.data?.spec?.maxPipelines !== undefined) {
-            const limit = r.data.spec.maxPipelines;
-            if (typeof limit === 'number') {
-                return limit;
-            }
-        }
-    }
-    return 10;
-}
+
 
 /* =========================
     커스텀 훅: 파이프라인 통계
@@ -167,7 +154,7 @@ function usePipelineStats() {
     const [namespaces, setNamespaces] = useState([]);
     const [countsByNS, setCountsByNS] = useState({});
     
-    const [maxConcurrency, setMaxConcurrency] = useState(20);
+
 
     const loadingRef = useRef(false);
     const firstLoadRef = useRef(true);
@@ -215,8 +202,7 @@ function usePipelineStats() {
             loadingRef.current = true;
 
             try {
-                const dynamicLimit = await fetchGlobalLimit();
-                if (alive && dynamicLimit !== null) setMaxConcurrency(dynamicLimit);
+
 
                 const nsList = await listNamespaces();
                 if (!alive) return;
@@ -227,26 +213,21 @@ function usePipelineStats() {
                 if (!alive) return;
 
                 const counts = {};
-                for (const ns of nsList) counts[ns] = { pending: 0, queued: 0, running: 0, recent: 0 };
+                for (const ns of nsList) counts[ns] = { pending: 0, running: 0, recent: 0 };
                 const threshold = Date.now() - 12 * 60 * 60 * 1000;
 
                 for (const pr of prs) {
                     const prNS = pr?.metadata?.namespace || 'default';
                     if (!nsList.includes(prNS)) continue; 
                     
-                    if (!counts[prNS]) counts[prNS] = { pending: 0, queued: 0, running: 0, recent: 0 };
+                    if (!counts[prNS]) counts[prNS] = { pending: 0, running: 0, recent: 0 };
 
                     const { reason = '', status = '' } = getStatus(pr) || {};
-                    const isManaged = pr?.metadata?.labels?.['queue.tekton.dev/managed'] === 'yes';
 
                     if (isRunning(reason, status)) {
                         counts[prNS].running += 1;
                     } else if (isPending(reason, status)) {
-                        if (isManaged) {
-                            counts[prNS].queued += 1;
-                            } else {
-                                counts[prNS].pending += 1;
-                                }
+                        counts[prNS].pending += 1;
                     }
 
                     const ts = pr?.status?.startTime ? Date.parse(pr.status.startTime) : 0;
@@ -293,8 +274,7 @@ function usePipelineStats() {
         handleRefresh,
         autoRefreshMs,
         setAutoRefreshMs,
-        isLoadingOrRefreshing: loadingRef.current,
-        maxConcurrency
+        isLoadingOrRefreshing: loadingRef.current
     };
 }
 
@@ -521,13 +501,11 @@ export function About() {
 
     const {
         loading,
-        refreshing,
         namespaces,
         countsByNS,
         colorByNS,
         handleRefresh,
-        isLoadingOrRefreshing,
-        maxConcurrency
+        isLoadingOrRefreshing
     } = usePipelineStats();
     
     const [selectedNS, setSelectedNS] = useState('ALL');
@@ -579,8 +557,7 @@ export function About() {
             .filter(d => d.value > 0);
     };
 
-    const totalRunning = Object.values(countsByNS).reduce((sum, ns) => sum + (ns.running || 0), 0);
-    const totalQueued = Object.values(countsByNS).reduce((sum, ns) => sum + (ns.queued || 0), 0);
+
 
     const refreshButtonText = isLoadingOrRefreshing
         ? intl.formatMessage({ id: 'dashboard.about.refreshing', defaultMessage: '새로고침' })
@@ -633,7 +610,7 @@ export function About() {
             )}
 
             {/* ▼ 파이프라인 현황 */}
-            <section className="tkn--css-grid" style={{ opacity: refreshing ? 0.96 : 1, transition: 'opacity .2s' }}>
+            <section className="tkn--css-grid">
                 <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
                         <h2 className="tkn--section-title" style={{ marginBottom: 0 }}>파이프라인 현황</h2>
@@ -685,30 +662,9 @@ export function About() {
                     )}
                 </Tile>
 
-                <Tile style={{ paddingBottom: '1rem', position: 'relative' }}>
+                <Tile style={{ paddingBottom: '1rem' }}>
                     {loading ? <SkeletonText paragraph /> : (
-                        <>
-                            <div style={{ 
-                                position: 'absolute', 
-                                top: '1rem', 
-                                right: '1rem', 
-                                background: (totalRunning >= maxConcurrency || totalQueued > 0) ? '#da1e28' : '#e0e0e0',
-                                color: (totalRunning >= maxConcurrency || totalQueued > 0) ? '#fff' : '#161616',
-                                padding: '4px 8px', 
-                                borderRadius: '12px', 
-                                fontSize: '0.75rem', 
-                                fontWeight: 'bold',
-                                zIndex: 1,
-                                display: 'flex',
-                                gap: '6px'
-                            }}>
-                                <span>동작: {totalRunning} / {maxConcurrency}</span>
-                                {totalQueued > 0 && (
-                                    <span>| 대기열: {totalQueued}</span>
-                                )}
-                            </div>
-                            <DonutChart title="실행 중 파이프라인" data={buildData('running')} />
-                        </>
+                        <DonutChart title="실행 중 파이프라인" data={buildData('running')} />
                     )}
                 </Tile>
 
