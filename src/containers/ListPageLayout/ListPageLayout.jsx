@@ -31,7 +31,7 @@ export const ListPageLayout = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(1000);
   const [page, setPage] = useState(1); // pagination component counts from 1
 
   useEffect(() => {
@@ -102,7 +102,7 @@ export const ListPageLayout = ({
           }}
           page={page}
           pageSize={pageSize}
-          pageSizes={[10, 25, 50, 100]}
+          pageSizes={[50, 100, 500, 1000]}
           totalItems={resources.length}
         />
       )}
