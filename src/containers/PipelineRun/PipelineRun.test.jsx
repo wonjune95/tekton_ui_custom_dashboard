@@ -11,11 +11,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { waitFor } from '@testing-library/react';
+import { fireEvent, waitFor } from '@testing-library/react';
 import { createIntl } from 'react-intl';
 import { paths, urls } from '@tektoncd/dashboard-utils';
 
 import { renderWithRouter } from '../../utils/test';
+import * as API from '../../api';
 import * as PipelineRunsAPI from '../../api/pipelineRuns';
 import * as PipelinesAPI from '../../api/pipelines';
 import * as TaskRunsAPI from '../../api/taskRuns';
@@ -43,6 +44,36 @@ it('PipelineRunContainer renders data', async () => {
 
   const { getByText } = renderWithRouter(<PipelineRunContainer intl={intl} />);
   await waitFor(() => getByText(pipelineRun.metadata.name));
+});
+
+// custom: 목록 화면과 동일하게 Rerun -> Start -> Edit and run 순서이고,
+// Start도 기존 spec으로 새 PipelineRun을 만든다
+it('PipelineRunContainer uses the customised actions menu', async () => {
+  vi.spyOn(API, 'useIsReadOnly').mockImplementation(() => false);
+  vi.spyOn(PipelineRunsAPI, 'usePipelineRun').mockImplementation(() => ({
+    data: pipelineRun
+  }));
+  vi.spyOn(PipelineRunsAPI, 'rerunPipelineRun').mockImplementation(() =>
+    Promise.resolve({ metadata: { name: 'pipeline-run-abcde' } })
+  );
+  vi.spyOn(TaskRunsAPI, 'useTaskRuns').mockImplementation(() => ({ data: [] }));
+  vi.spyOn(TasksAPI, 'useTasks').mockImplementation(() => ({ data: [] }));
+
+  const { getByText, getByRole } = renderWithRouter(
+    <PipelineRunContainer intl={intl} />
+  );
+  await waitFor(() => getByText(pipelineRun.metadata.name));
+  fireEvent.click(getByRole('button', { name: /actions/i }));
+  await waitFor(() => getByText('Start'));
+
+  const follows = (a, b) =>
+    Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(follows(getByText('Rerun'), getByText('Start'))).toBe(true);
+  expect(follows(getByText('Start'), getByText('Edit and run'))).toBe(true);
+
+  fireEvent.click(getByText('Start'));
+  expect(PipelineRunsAPI.rerunPipelineRun).toHaveBeenCalledTimes(1);
+  expect(PipelineRunsAPI.rerunPipelineRun).toHaveBeenCalledWith(pipelineRun);
 });
 
 it('PipelineRunContainer renders not found state', async () => {

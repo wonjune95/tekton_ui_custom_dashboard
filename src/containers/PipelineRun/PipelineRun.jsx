@@ -41,7 +41,6 @@ import {
   cancelPipelineRun,
   deletePipelineRun,
   rerunPipelineRun,
-  startPipelineRun,
   useEvents,
   useExternalLogsURL,
   useIsLogStreamingEnabled,
@@ -335,21 +334,23 @@ export /* istanbul ignore next */ function PipelineRunContainer({
       },
       {
         actionText: intl.formatMessage({
+          id: 'dashboard.startRun.actionText',
+          defaultMessage: 'Start'
+        }),
+        // custom: 목록 화면과 동일하게, 기존 spec으로 새 PipelineRun을 생성해
+        // 실행 이력을 보존한다 (Pending 해제가 아님)
+        action: rerun,
+        disable: resource => {
+          const { reason, status } = getStatus(resource);
+          return isRunning(reason, status);
+        }
+      },
+      {
+        actionText: intl.formatMessage({
           id: 'dashboard.editAndRun.actionText',
           defaultMessage: 'Edit and run'
         }),
         action: editAndRun
-      },
-      {
-        actionText: intl.formatMessage({
-          id: 'dashboard.startRun.actionText',
-          defaultMessage: 'Start'
-        }),
-        action: startPipelineRun,
-        disable: resource => {
-          const { reason, status } = getStatus(resource);
-          return !isPending(reason, status);
-        }
       },
       {
         actionText: intl.formatMessage({
