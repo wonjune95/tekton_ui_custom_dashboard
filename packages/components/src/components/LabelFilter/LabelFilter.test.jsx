@@ -19,7 +19,7 @@ import { render } from '../../utils/test';
 it('LabelFilter renders', () => {
   const filter = 'tekton.dev/pipeline=demo-pipeline';
   const { queryByText } = render(<LabelFilter filters={[filter]} />);
-  expect(queryByText(/Search by label/i)).not.toBeNull();
+  expect(queryByText(/Search by name/i)).not.toBeNull();
   expect(queryByText(filter.replace('=', ':'))).not.toBeNull();
 });
 
@@ -28,12 +28,39 @@ it('LabelFilter treats free text as a search query rather than a label', () => {
   const { getByPlaceholderText, getByText, queryByText } = render(
     <LabelFilter handleAddFilter={handleAddFilter} />
   );
-  fireEvent.change(getByPlaceholderText(/search by label/i), {
+  fireEvent.change(getByPlaceholderText(/search by name/i), {
     target: { value: 'my-pipeline' }
   });
-  fireEvent.submit(getByText(/Search by label/i));
+  fireEvent.submit(getByText(/Search by name/i));
   expect(handleAddFilter).not.toHaveBeenCalled();
   expect(queryByText('my-pipeline')).not.toBeNull();
+});
+
+it('LabelFilter broadcasts free text as a search query while typing', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const onSearch = vi.fn(event => event.detail.q);
+  window.addEventListener('tkn:textSearch', onSearch);
+  try {
+    const { getByPlaceholderText } = render(<LabelFilter />);
+    fireEvent.change(getByPlaceholderText(/search by name/i), {
+      target: { value: 'my-pipeline' }
+    });
+    // debounced, so nothing broadcast yet
+    expect(onSearch).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(onSearch).toHaveBeenCalledTimes(1);
+    expect(onSearch.mock.results[0].value).toEqual('my-pipeline');
+
+    // clearing the input clears the search
+    fireEvent.change(getByPlaceholderText(/search by name/i), {
+      target: { value: '' }
+    });
+    expect(onSearch).toHaveBeenCalledTimes(2);
+    expect(onSearch.mock.results[1].value).toEqual('');
+  } finally {
+    window.removeEventListener('tkn:textSearch', onSearch);
+    vi.useRealTimers();
+  }
 });
 
 it('LabelFilter handles adding a filter', () => {
@@ -42,10 +69,10 @@ it('LabelFilter handles adding a filter', () => {
   const { getByPlaceholderText, getByText } = render(
     <LabelFilter handleAddFilter={handleAddFilter} />
   );
-  fireEvent.change(getByPlaceholderText(/search by label/i), {
+  fireEvent.change(getByPlaceholderText(/search by name/i), {
     target: { value: filter }
   });
-  fireEvent.submit(getByText(/Search by label/i));
+  fireEvent.submit(getByText(/Search by name/i));
   expect(handleAddFilter).toHaveBeenCalledWith([filter.replace(':', '=')]);
 });
 
@@ -56,10 +83,10 @@ it('LabelFilter displays notification if character length is over 63 characters 
   const { getByPlaceholderText, getByText, getByTitle, queryByText } = render(
     <LabelFilter handleAddFilter={handleAddFilter} />
   );
-  fireEvent.change(getByPlaceholderText(/search by label/i), {
+  fireEvent.change(getByPlaceholderText(/search by name/i), {
     target: { value: filter }
   });
-  fireEvent.submit(getByText(/Search by label/i));
+  fireEvent.submit(getByText(/Search by name/i));
   expect(handleAddFilter).not.toHaveBeenCalled();
   await waitFor(() =>
     getByText(
@@ -81,10 +108,10 @@ it('LabelFilter handles adding a duplicate filter', async () => {
   const { getByPlaceholderText, getByText, getByTitle, queryByText } = render(
     <LabelFilter filters={[filter]} handleAddFilter={handleAddFilter} />
   );
-  fireEvent.change(getByPlaceholderText(/search by label/i), {
+  fireEvent.change(getByPlaceholderText(/search by name/i), {
     target: { value: filterDisplayValue }
   });
-  fireEvent.submit(getByText(/Search by label/i));
+  fireEvent.submit(getByText(/Search by name/i));
   expect(handleAddFilter).not.toHaveBeenCalled();
   await waitFor(() => getByText(/no duplicate filters allowed/i));
   fireEvent.click(getByTitle(/close notification/i));

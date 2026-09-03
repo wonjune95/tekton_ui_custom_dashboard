@@ -135,7 +135,7 @@
   "dashboard.labelFilter.duplicate": "不允许重复的过滤器",
   "dashboard.labelFilter.invalid": "过滤器的格式必须是 labelKey:labelValue，并包含可接受的标签字符。",
   "dashboard.labelFilter.invalidLength": "过滤器的格式必须是 labelKey:labelValue，并包含少于 64 个字符。",
-  "dashboard.labelFilter.searchPlaceholder": "输入一个格式为 labelKey:labelValue 的标签过滤器",
+  "dashboard.labelFilter.searchPlaceholder": "按名称搜索（输入 labelKey:labelValue 可按标签过滤）",
   "dashboard.labelFilter.syntaxMessage": "请参阅 Kubernetes 标签文档了解有效的语法。",
   "dashboard.lastUpdated": "最后更新于 {time}",
   "dashboard.list.menu.tooltip": "操作",

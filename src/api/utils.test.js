@@ -16,6 +16,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import * as comms from './comms';
 import * as utils from './utils';
 import {
+  applyClientTextFilter,
   getQueryParams,
   removeSystemAnnotations,
   removeSystemLabels,
@@ -307,6 +308,117 @@ describe('useCollection', () => {
       });
     });
     await waitFor(() => expect(result.current.data).toEqual([updatedResource]));
+  });
+});
+
+describe('applyClientTextFilter', () => {
+  const run = (name, namespace = 'default') => ({
+    metadata: { name, namespace, uid: `${namespace}/${name}` }
+  });
+  const items = [
+    run('sample-dev-deploy-pr', 'app-cicd'),
+    run('sample_prod.build/pr', 'other-cicd'),
+    run('unrelated-run', 'app-cicd')
+  ];
+  const names = result => result.map(i => i.metadata.name);
+
+  it('returns the input unchanged for an empty query', () => {
+    expect(applyClientTextFilter(items, '')).toBe(items);
+    expect(applyClientTextFilter(items, '   ')).toBe(items);
+    expect(applyClientTextFilter(items, undefined)).toBe(items);
+  });
+
+  it('matches a substring of the name, ignoring case', () => {
+    expect(names(applyClientTextFilter(items, 'DEPLOY'))).toEqual([
+      'sample-dev-deploy-pr'
+    ]);
+  });
+
+  it('matches name segments split on - _ . and /', () => {
+    expect(names(applyClientTextFilter(items, 'build'))).toEqual([
+      'sample_prod.build/pr'
+    ]);
+  });
+
+  it('matches the name with separators removed', () => {
+    expect(names(applyClientTextFilter(items, 'sampledevdeploy'))).toEqual([
+      'sample-dev-deploy-pr'
+    ]);
+  });
+
+  it('matches on namespace', () => {
+    expect(names(applyClientTextFilter(items, 'other-cicd'))).toEqual([
+      'sample_prod.build/pr'
+    ]);
+  });
+
+  it('requires every whitespace-separated token to match (AND)', () => {
+    expect(names(applyClientTextFilter(items, 'sample deploy'))).toEqual([
+      'sample-dev-deploy-pr'
+    ]);
+    expect(applyClientTextFilter(items, 'sample nomatch')).toEqual([]);
+  });
+
+  it('matches tokens across both name and namespace', () => {
+    expect(names(applyClientTextFilter(items, 'unrelated app-cicd'))).toEqual([
+      'unrelated-run'
+    ]);
+  });
+
+  it('tolerates resources without metadata', () => {
+    expect(applyClientTextFilter([{}, ...items], 'deploy')).toEqual([items[0]]);
+  });
+});
+
+describe('useCollection text search', () => {
+  const kind = 'pipelineruns';
+  const version = 'v1';
+  const resourceVersion = 'fake_resourceVersion';
+
+  function setup(group) {
+    const queryClient = getQueryClient();
+    vi.spyOn(comms, 'createWebSocket').mockImplementation(() => getWebSocket());
+    queryClient.setQueryData([group, version, kind], () => ({
+      items: [
+        { kind, metadata: { name: 'build-alpha', uid: '1' } },
+        { kind, metadata: { name: 'deploy-beta', uid: '2' } }
+      ],
+      metadata: { resourceVersion }
+    }));
+    return renderHook(() => useCollection({ group, kind, version }), {
+      wrapper: getAPIWrapper({ queryClient })
+    });
+  }
+
+  function search(q) {
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('tkn:textSearch', { detail: { q } })
+      );
+    });
+  }
+
+  it('filters Tekton resources when LabelFilter broadcasts a query', async () => {
+    const { result } = setup('tekton.dev');
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+
+    search('deploy');
+    await waitFor(() =>
+      expect(result.current.data.map(i => i.metadata.name)).toEqual([
+        'deploy-beta'
+      ])
+    );
+
+    search('');
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+  });
+
+  it('leaves non-Tekton collections untouched', async () => {
+    const { result } = setup('dashboard.tekton.dev');
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+
+    search('deploy');
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
   });
 });
 

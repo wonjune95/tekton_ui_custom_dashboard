@@ -120,14 +120,14 @@ describe('PipelineRuns container', () => {
     );
 
     const filterValue = 'baz:bam';
-    const filterInputField = getByPlaceholderText(/Search by label/);
+    const filterInputField = getByPlaceholderText(/Search by name/);
     fireEvent.change(filterInputField, { target: { value: filterValue } });
-    fireEvent.submit(getByText(/Search by label/i));
+    fireEvent.submit(getByText(/Search by name/i));
 
     expect(queryByText(filterValue)).toBeTruthy();
 
     fireEvent.change(filterInputField, { target: { value: filterValue } });
-    fireEvent.submit(getByText(/Search by label/i));
+    fireEvent.submit(getByText(/Search by name/i));
     expect(queryByText(/No duplicate filters allowed/i)).toBeTruthy();
   });
 
@@ -142,9 +142,9 @@ describe('PipelineRuns container', () => {
     );
 
     const filterValue = 'baz=bam';
-    const filterInputField = getByPlaceholderText(/Search by label/);
+    const filterInputField = getByPlaceholderText(/Search by name/);
     fireEvent.change(filterInputField, { target: { value: filterValue } });
-    fireEvent.submit(getByText(/Search by label/i));
+    fireEvent.submit(getByText(/Search by name/i));
 
     expect(
       queryByText(

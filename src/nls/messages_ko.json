@@ -135,7 +135,7 @@
   "dashboard.labelFilter.duplicate": "중복 필터는 허용되지 않습니다.",
   "dashboard.labelFilter.invalid": "필터는 labelKey:labelValue 형식이어야 하며 허용되는 라벨 문자를 포함해야 합니다.",
   "dashboard.labelFilter.invalidLength": "필터는 labelKey:labelValue 형식이어야 하며 64자 미만이어야 합니다.",
-  "dashboard.labelFilter.searchPlaceholder": "labelKey:labelValue 형식의 라벨 필터를 입력하세요.",
+  "dashboard.labelFilter.searchPlaceholder": "이름으로 검색 (labelKey:labelValue 입력 시 라벨 필터)",
   "dashboard.labelFilter.syntaxMessage": "유효한 구문은 Kubernetes 라벨 문서를 참조하세요.",
   "dashboard.lastUpdated": "{time} 마지막 업데이트",
   "dashboard.list.menu.tooltip": "조치",

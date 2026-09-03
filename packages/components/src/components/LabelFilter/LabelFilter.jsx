@@ -220,7 +220,8 @@ class LabelFilter extends Component {
 
     const searchDescription = intl.formatMessage({
       id: 'dashboard.labelFilter.searchPlaceholder',
-      defaultMessage: 'Search by label (labelKey:labelValue) or free text'
+      defaultMessage:
+        'Search by name (use labelKey:labelValue to filter by label)'
     });
 
     return (
