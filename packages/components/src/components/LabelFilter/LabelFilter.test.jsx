@@ -63,6 +63,56 @@ it('LabelFilter broadcasts free text as a search query while typing', async () =
   }
 });
 
+it('LabelFilter does not search text that was deleted before the debounce fired', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const onSearch = vi.fn(event => event.detail.q);
+  window.addEventListener('tkn:textSearch', onSearch);
+  try {
+    const { getByPlaceholderText, queryByText } = render(<LabelFilter />);
+    const input = getByPlaceholderText(/search by name/i);
+
+    // 타이핑 후 디바운스가 끝나기 전에 한 글자씩 지운다
+    for (const value of ['abc', 'ab', 'a', '']) {
+      fireEvent.change(input, { target: { value } });
+    }
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // 남아 있던 타이머가 뒤늦게 'a'를 검색어로 걸면 안 된다
+    expect(onSearch.mock.results.map(r => r.value)).not.toContain('a');
+    expect(queryByText('a')).toBeNull();
+  } finally {
+    window.removeEventListener('tkn:textSearch', onSearch);
+    vi.useRealTimers();
+  }
+});
+
+it('LabelFilter cancels a pending search when the query tag is dismissed', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const onSearch = vi.fn(event => event.detail.q);
+  window.addEventListener('tkn:textSearch', onSearch);
+  try {
+    const { getByPlaceholderText, getByText, queryByText } = render(
+      <LabelFilter />
+    );
+    const input = getByPlaceholderText(/search by name/i);
+
+    fireEvent.change(input, { target: { value: 'abc' } });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(queryByText('abc')).not.toBeNull();
+
+    // 검색어를 다시 바꾼 뒤 디바운스 전에 태그를 닫는다
+    fireEvent.change(input, { target: { value: 'abcd' } });
+    fireEvent.click(getByText('abc'));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(onSearch.mock.results.at(-1).value).toEqual('');
+    expect(queryByText('abcd')).toBeNull();
+  } finally {
+    window.removeEventListener('tkn:textSearch', onSearch);
+    vi.useRealTimers();
+  }
+});
+
 it('LabelFilter handles adding a filter', () => {
   const filter = 'app:test';
   const handleAddFilter = vi.fn();

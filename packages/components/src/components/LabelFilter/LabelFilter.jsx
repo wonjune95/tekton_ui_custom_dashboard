@@ -64,10 +64,16 @@ class LabelFilter extends Component {
   }
 
   componentWillUnmount() {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-    }
+    this.cancelPendingSearch();
   }
+
+  // 예약된 디바운스 검색을 취소한다. 입력을 지우거나 검색을 해제할 때
+  // 반드시 호출해야 한다. 그렇지 않으면 이미 지운 입력의 타이머가 뒤늦게
+  // 발동해 한 글자짜리 검색어가 필터로 걸린다.
+  cancelPendingSearch = () => {
+    clearTimeout(this.debounceTimer);
+    this.debounceTimer = null;
+  };
 
   emitSelectorIfNeeded = filters => {
     const selector = buildLabelSelectorFromFilters(filters);
@@ -86,6 +92,7 @@ class LabelFilter extends Component {
   };
 
   clearTextSearch = () => {
+    this.cancelPendingSearch();
     this.setState({ textQuery: '' });
     this.props.onTextSearch?.('');
     broadcastTextQuery('');
@@ -168,23 +175,17 @@ class LabelFilter extends Component {
     const inputValue = event.target.value;
     this.setState({ currentFilterValue: inputValue });
 
+    // 어떤 입력이든 직전에 예약된 검색은 무효가 된다
+    this.cancelPendingSearch();
+
     const val = (inputValue || '').trim();
     if (val === '') {
       this.clearTextSearch();
       return;
     }
-    const compact = val.replace(/\s/g, '');
-    if (!LABEL_REGEX.test(compact)) {
-      if (this.debounceTimer) {
-        clearTimeout(this.debounceTimer);
-      }
-      this.debounceTimer = setTimeout(() => {
-        if (val !== '') {
-          this.applyTextSearch(val);
-        } // ▼ this.state 대신 캡처값 사용
-      }, 400);
-    } else if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
+    // 라벨 형식은 Enter로 확정하므로 자동 검색하지 않는다
+    if (!LABEL_REGEX.test(val.replace(/\s/g, ''))) {
+      this.debounceTimer = setTimeout(() => this.applyTextSearch(val), 400);
     }
   };
 
