@@ -45,7 +45,6 @@ import {
   cancelPipelineRun,
   deletePipelineRun,
   rerunPipelineRun,
-  startPipelineRun,
   useIsReadOnly,
   usePipelineRuns,
   useSelectedNamespace
@@ -248,10 +247,12 @@ export function PipelineRuns() {
           id: 'dashboard.startRun.actionText',
           defaultMessage: 'Start'
         }),
-        action: startPipelineRun,
+        // custom: start a fresh PipelineRun from the existing spec instead of
+        // only un-pausing a Pending run, so history is preserved
+        action: rerunPipelineRun,
         disable: resource => {
           const { reason, status } = getStatus(resource);
-          return !isPending(reason, status);
+          return isRunning(reason, status);
         }
       },
       {

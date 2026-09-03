@@ -22,6 +22,59 @@ export const tektonAPIGroup = 'tekton.dev';
 export const triggersAPIGroup = 'triggers.tekton.dev';
 export const dashboardAPIGroup = 'dashboard.tekton.dev';
 
+/* ===== 전역 텍스트 검색 (LabelFilter -> useCollection) ===== */
+
+// LabelFilter가 쏘는 전역 이벤트 구독
+function onTextSearch(callback) {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+  const handler = e => callback((e?.detail?.q || '').trim());
+  window.addEventListener('tkn:textSearch', handler);
+  return () => window.removeEventListener('tkn:textSearch', handler);
+}
+
+// 이름을 하이픈/언더스코어/점/슬래시로 분해 + 공백제거 버전까지 인덱싱
+function tokenizeName(s = '') {
+  const lower = String(s).toLowerCase();
+  return {
+    lower,
+    parts: lower.split(/[-._/]+/g).filter(Boolean), // ['sample','dev','deploy','pr']
+    joined: lower.replace(/[-._/]+/g, '') // 'sampledevdeploypr'
+  };
+}
+
+// 이름 + 네임스페이스만 확인, 공백으로 나눈 토큰은 AND 매칭
+export function applyClientTextFilter(items, q) {
+  const query = (q || '').trim().toLowerCase();
+  if (!query || !Array.isArray(items)) {
+    return items;
+  }
+
+  const tokens = query.split(/\s+/).filter(Boolean);
+
+  return items.filter(item => {
+    const { name, namespace } = item?.metadata || {};
+    const nameIdx = tokenizeName(name);
+    const nsIdx = tokenizeName(namespace);
+
+    return tokens.every(
+      token =>
+        nameIdx.lower.includes(token) ||
+        nameIdx.joined.includes(token) ||
+        nameIdx.parts.some(part => part.includes(token)) ||
+        nsIdx.lower.includes(token)
+    );
+  });
+}
+
+// 확장메뉴(dashboard.tekton.dev) 데이터는 건드리지 않고 Pipelines / Triggers 계열만 필터
+function shouldApplyTextFilter({ group }) {
+  return group === tektonAPIGroup || group === triggersAPIGroup;
+}
+
+/* ===== 유틸 끝 ===== */
+
 export function getQueryParams({
   filters,
   involvedObjectKind,
@@ -248,6 +301,8 @@ export function useSelectedNamespace() {
   return useContext(NamespaceContext);
 }
 
+// ... 위쪽은 그대로 (readQFromUrl, onTextSearch, applyClientTextFilter 등)
+
 export function useCollection({ group, kind, params, queryConfig, version }) {
   const { disableWebSocket, ...reactQueryConfig } = queryConfig || {};
   const query = useQuery({
@@ -255,11 +310,18 @@ export function useCollection({ group, kind, params, queryConfig, version }) {
     ...reactQueryConfig
   });
 
+  const [textQuery, setTextQuery] = useState('');
+  useEffect(() => onTextSearch(setTextQuery), []);
+
   let data = [];
   let resourceVersion;
   if (query.data?.items) {
     resourceVersion = query.data.metadata.resourceVersion;
     data = query.data.items;
+  }
+
+  if (textQuery && shouldApplyTextFilter({ group })) {
+    data = applyClientTextFilter(data, textQuery);
   }
 
   const { isWebSocketConnected } = useWebSocket({

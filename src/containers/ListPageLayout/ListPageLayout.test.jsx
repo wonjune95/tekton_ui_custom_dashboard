@@ -19,13 +19,13 @@ describe('ListPageLayout', () => {
     const { queryByLabelText } = renderWithRouter(
       <ListPageLayout>{() => {}}</ListPageLayout>
     );
-    expect(queryByLabelText(/Input a label filter/i)).toBeFalsy();
+    expect(queryByLabelText(/Search by label/i)).toBeFalsy();
   });
 
   it('renders LabelFilter input when filters prop is provided', () => {
     const { getAllByLabelText } = renderWithRouter(
       <ListPageLayout filters={[]}>{() => {}}</ListPageLayout>
     );
-    expect(getAllByLabelText(/Input a label filter/i)[0]).toBeTruthy();
+    expect(getAllByLabelText(/Search by label/i)[0]).toBeTruthy();
   });
 });

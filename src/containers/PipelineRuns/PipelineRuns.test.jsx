@@ -120,18 +120,18 @@ describe('PipelineRuns container', () => {
     );
 
     const filterValue = 'baz:bam';
-    const filterInputField = getByPlaceholderText(/Input a label filter/);
+    const filterInputField = getByPlaceholderText(/Search by label/);
     fireEvent.change(filterInputField, { target: { value: filterValue } });
-    fireEvent.submit(getByText(/Input a label filter/i));
+    fireEvent.submit(getByText(/Search by label/i));
 
     expect(queryByText(filterValue)).toBeTruthy();
 
     fireEvent.change(filterInputField, { target: { value: filterValue } });
-    fireEvent.submit(getByText(/Input a label filter/i));
+    fireEvent.submit(getByText(/Search by label/i));
     expect(queryByText(/No duplicate filters allowed/i)).toBeTruthy();
   });
 
-  it('An invalid filter value is disallowed and reported', async () => {
+  it('A value that is not a label is treated as a free text search', async () => {
     const { queryByText, getByPlaceholderText, getByText } = renderWithRouter(
       <PipelineRunsContainer
         error={null}
@@ -142,15 +142,16 @@ describe('PipelineRuns container', () => {
     );
 
     const filterValue = 'baz=bam';
-    const filterInputField = getByPlaceholderText(/Input a label filter/);
+    const filterInputField = getByPlaceholderText(/Search by label/);
     fireEvent.change(filterInputField, { target: { value: filterValue } });
-    fireEvent.submit(getByText(/Input a label filter/i));
+    fireEvent.submit(getByText(/Search by label/i));
 
     expect(
       queryByText(
         /Filters must be of the format labelKey:labelValue and contain accepted label characters/i
       )
-    ).toBeTruthy();
+    ).toBeFalsy();
+    expect(queryByText(filterValue)).toBeTruthy();
   });
 
   it('Creation, deletion and stop events are possible when not in read-only mode', async () => {
@@ -213,12 +214,14 @@ describe('PipelineRuns container', () => {
     );
   });
 
+  // custom: 'Start' creates a new PipelineRun from the existing spec rather
+  // than un-pausing a Pending run, so run history is preserved
   it('handles start event in PipelineRuns page', async () => {
     vi.spyOn(API, 'useIsReadOnly').mockImplementation(() => false);
     vi.spyOn(PipelineRunsAPI, 'usePipelineRuns').mockImplementation(() => ({
       data: [pipelineRuns[2]]
     }));
-    vi.spyOn(PipelineRunsAPI, 'startPipelineRun').mockImplementation(() => []);
+    vi.spyOn(PipelineRunsAPI, 'rerunPipelineRun').mockImplementation(() => []);
     const { getAllByTitle, getByText } = renderWithRouter(
       <PipelineRunsContainer />,
       {
@@ -230,8 +233,8 @@ describe('PipelineRuns container', () => {
     fireEvent.click(await waitFor(() => getAllByTitle('Actions')[0]));
     await waitFor(() => getByText(/Start/i));
     fireEvent.click(getByText('Start'));
-    expect(PipelineRunsAPI.startPipelineRun).toHaveBeenCalledTimes(1);
-    expect(PipelineRunsAPI.startPipelineRun).toHaveBeenCalledWith(
+    expect(PipelineRunsAPI.rerunPipelineRun).toHaveBeenCalledTimes(1);
+    expect(PipelineRunsAPI.rerunPipelineRun).toHaveBeenCalledWith(
       pipelineRuns[2]
     );
   });

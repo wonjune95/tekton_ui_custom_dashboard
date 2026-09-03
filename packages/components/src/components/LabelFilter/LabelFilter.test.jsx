@@ -19,14 +19,21 @@ import { render } from '../../utils/test';
 it('LabelFilter renders', () => {
   const filter = 'tekton.dev/pipeline=demo-pipeline';
   const { queryByText } = render(<LabelFilter filters={[filter]} />);
-  expect(queryByText(/Input a label filter/i)).not.toBeNull();
+  expect(queryByText(/Search by label/i)).not.toBeNull();
   expect(queryByText(filter.replace('=', ':'))).not.toBeNull();
 });
 
-it('LabelFilter renders error on empty filter', () => {
-  const { getByText, queryByText } = render(<LabelFilter />);
-  fireEvent.submit(getByText(/Input a label filter/i));
-  expect(queryByText(/filters must be/i)).not.toBeNull();
+it('LabelFilter treats free text as a search query rather than a label', () => {
+  const handleAddFilter = vi.fn();
+  const { getByPlaceholderText, getByText, queryByText } = render(
+    <LabelFilter handleAddFilter={handleAddFilter} />
+  );
+  fireEvent.change(getByPlaceholderText(/search by label/i), {
+    target: { value: 'my-pipeline' }
+  });
+  fireEvent.submit(getByText(/Search by label/i));
+  expect(handleAddFilter).not.toHaveBeenCalled();
+  expect(queryByText('my-pipeline')).not.toBeNull();
 });
 
 it('LabelFilter handles adding a filter', () => {
@@ -35,10 +42,10 @@ it('LabelFilter handles adding a filter', () => {
   const { getByPlaceholderText, getByText } = render(
     <LabelFilter handleAddFilter={handleAddFilter} />
   );
-  fireEvent.change(getByPlaceholderText(/input a label filter/i), {
+  fireEvent.change(getByPlaceholderText(/search by label/i), {
     target: { value: filter }
   });
-  fireEvent.submit(getByText(/Input a label filter/i));
+  fireEvent.submit(getByText(/Search by label/i));
   expect(handleAddFilter).toHaveBeenCalledWith([filter.replace(':', '=')]);
 });
 
@@ -49,10 +56,10 @@ it('LabelFilter displays notification if character length is over 63 characters 
   const { getByPlaceholderText, getByText, getByTitle, queryByText } = render(
     <LabelFilter handleAddFilter={handleAddFilter} />
   );
-  fireEvent.change(getByPlaceholderText(/input a label filter/i), {
+  fireEvent.change(getByPlaceholderText(/search by label/i), {
     target: { value: filter }
   });
-  fireEvent.submit(getByText(/Input a label filter/i));
+  fireEvent.submit(getByText(/Search by label/i));
   expect(handleAddFilter).not.toHaveBeenCalled();
   await waitFor(() =>
     getByText(
@@ -74,10 +81,10 @@ it('LabelFilter handles adding a duplicate filter', async () => {
   const { getByPlaceholderText, getByText, getByTitle, queryByText } = render(
     <LabelFilter filters={[filter]} handleAddFilter={handleAddFilter} />
   );
-  fireEvent.change(getByPlaceholderText(/input a label filter/i), {
+  fireEvent.change(getByPlaceholderText(/search by label/i), {
     target: { value: filterDisplayValue }
   });
-  fireEvent.submit(getByText(/Input a label filter/i));
+  fireEvent.submit(getByText(/Search by label/i));
   expect(handleAddFilter).not.toHaveBeenCalled();
   await waitFor(() => getByText(/no duplicate filters allowed/i));
   fireEvent.click(getByTitle(/close notification/i));

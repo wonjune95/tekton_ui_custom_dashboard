@@ -54,6 +54,14 @@ export default defineConfig(({ mode }) => ({
     open: mode !== 'test',
     port: process.env.PORT || 8000,
     proxy: {
+      // 1) 가장 위에 두기
+      '/results-api': {
+        target: 'https://127.0.0.1:8080',
+        changeOrigin: true,
+        secure: false,
+        rewrite: p => p.replace(/^\/results-api/, '')
+      },
+      // 2) 그 다음에 나머지
       '/v1': proxyConfig,
       '/api': {
         ...proxyConfig,

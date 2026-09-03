@@ -32,7 +32,7 @@ export function Settings() {
   useTitleSync({
     page: intl.formatMessage({
       id: 'dashboard.settings.title',
-      defaultMessage: 'Settings'
+      defaultMessage: '설정'
     })
   });
 

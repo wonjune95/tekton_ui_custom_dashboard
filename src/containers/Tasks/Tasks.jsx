@@ -260,7 +260,7 @@ function Tasks() {
       error={getError()}
       filters={filters}
       resources={tasks}
-      title="Tasks"
+      title="Task"
     >
       {({ resources }) => (
         <>

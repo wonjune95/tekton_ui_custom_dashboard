@@ -20,13 +20,75 @@ function arrayUnique(arr) {
   return arr.filter((item, index) => arr.indexOf(item) >= index);
 }
 
+// 라벨 패턴: labelKey:labelValue[,labelKey:labelValue...]
+const LABEL_REGEX = /^(?:[a-z0-9A-Z-_./]+:[a-z0-9A-Z-_.]+,?)+$/;
+
+// filters 배열(= ["k=v","a=b"]) -> labelSelector 문자열
+function buildLabelSelectorFromFilters(filters = []) {
+  return (filters || []).join(',');
+}
+
+/* ▼ 추가: 전역 이벤트 & URL 쿼리 유틸 (window 안전하게) */
+function broadcastTextQuery(q) {
+  window.dispatchEvent(new CustomEvent('tkn:textSearch', { detail: { q } }));
+}
+/* ▲ 추가 끝 */
+
 class LabelFilter extends Component {
   state = {
     currentFilterValue: '',
     isValid: true,
     filterMessage: null,
     url: '',
-    urlMessage: ''
+    urlMessage: '',
+    textQuery: ''
+  };
+
+  debounceTimer = null;
+
+  componentDidMount() {
+    this.emitSelectorIfNeeded(this.props.filters);
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (prevProps.filters !== this.props.filters) {
+      this.emitSelectorIfNeeded(this.props.filters);
+    }
+    if (
+      prevState.currentFilterValue !== this.state.currentFilterValue &&
+      this.state.currentFilterValue.trim() === '' &&
+      this.state.textQuery !== ''
+    ) {
+      this.clearTextSearch();
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+  }
+
+  emitSelectorIfNeeded = filters => {
+    const selector = buildLabelSelectorFromFilters(filters);
+    this.props.onBuildSelector?.(selector);
+  };
+
+  // 일반 텍스트 검색 적용/해제
+  applyTextSearch = query => {
+    const trimmed = (query || '').trim();
+    if (this.state.textQuery === trimmed) {
+      return;
+    }
+    this.setState({ textQuery: trimmed });
+    this.props.onTextSearch?.(trimmed);
+    broadcastTextQuery(trimmed);
+  };
+
+  clearTextSearch = () => {
+    this.setState({ textQuery: '' });
+    this.props.onTextSearch?.('');
+    broadcastTextQuery('');
   };
 
   handleAddFilter = event => {
@@ -34,61 +96,96 @@ class LabelFilter extends Component {
 
     const { intl } = this.props;
     const { currentFilterValue } = this.state;
-    const filterRegex = '([a-z0-9A-Z-_./]:[a-z0-9A-Z-_.],?)+';
-    const filterValue = currentFilterValue.replace(/\s/g, '');
-    if (!filterValue.match(filterRegex)) {
-      this.setState({
-        isValid: false,
-        filterMessage: intl.formatMessage({
-          id: 'dashboard.labelFilter.invalid',
-          defaultMessage:
-            'Filters must be of the format labelKey:labelValue and contain accepted label characters'
-        }),
-        url: 'https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set',
-        urlMessage: intl.formatMessage({
-          id: 'dashboard.labelFilter.syntaxMessage',
-          defaultMessage:
-            'See the Kubernetes Label documentation for valid syntax'
-        })
-      });
+
+    const rawInput = currentFilterValue || '';
+    const trimmedInput = rawInput.trim();
+
+    if (!trimmedInput) {
+      if (this.state.textQuery) {
+        this.clearTextSearch();
+      }
       return;
     }
-    const currentFilterRequest = filterValue.split(':');
-    if (currentFilterRequest[1].length > 63) {
-      this.setState({
-        isValid: false,
-        filterMessage: intl.formatMessage({
-          id: 'dashboard.labelFilter.invalidLength',
-          defaultMessage:
-            'Filters must be of the format labelKey:labelValue and contain less than 64 characters'
-        })
+
+    const compact = trimmedInput.replace(/\s/g, '');
+    if (LABEL_REGEX.test(compact)) {
+      const colonToEquals = compact.replace(/:/g, '=');
+      let currentFiltersArray = arrayUnique(colonToEquals.split(','));
+
+      const tooLong = currentFiltersArray.some(f => {
+        const [, value] = f.split('=');
+        return value && value.length > 63;
       });
+      if (tooLong) {
+        this.setState({
+          isValid: false,
+          filterMessage: intl.formatMessage({
+            id: 'dashboard.labelFilter.invalidLength',
+            defaultMessage:
+              'Filters must be of the format labelKey:labelValue and contain less than 64 characters'
+          }),
+          url: '',
+          urlMessage: ''
+        });
+        return;
+      }
+
+      const hasDup = currentFiltersArray.some(f =>
+        this.props.filters.includes(f)
+      );
+      if (hasDup) {
+        this.setState({
+          isValid: false,
+          filterMessage: intl.formatMessage({
+            id: 'dashboard.labelFilter.duplicate',
+            defaultMessage: 'No duplicate filters allowed'
+          }),
+          url: '',
+          urlMessage: ''
+        });
+        return;
+      }
+
+      this.props.handleAddFilter(
+        arrayUnique(this.props.filters.concat(currentFiltersArray))
+      );
+      this.resetCurrentFilterValue();
       return;
     }
-    const colonToEqualsFilters = filterValue.replace(/:/g, '=');
-    let currentFiltersArray = colonToEqualsFilters.split(',');
-    currentFiltersArray = arrayUnique(currentFiltersArray);
-    if (this.props.filters.includes(currentFiltersArray[0])) {
-      this.setState({
-        isValid: false,
-        filterMessage: intl.formatMessage({
-          id: 'dashboard.labelFilter.duplicate',
-          defaultMessage: 'No duplicate filters allowed'
-        }),
-        url: '',
-        urlMessage: ''
-      });
-      return;
-    }
-    this.props.handleAddFilter(this.props.filters.concat(currentFiltersArray));
-    this.resetCurrentFilterValue();
+
+    // 일반 텍스트 검색: 입력값 자체가 검색어이므로 입력창은 비우지 않는다
+    // (비우면 componentDidUpdate가 곧바로 검색을 해제해버림)
+    this.setState({
+      isValid: true,
+      filterMessage: null,
+      url: '',
+      urlMessage: ''
+    });
+    this.applyTextSearch(trimmedInput);
   };
 
   handleChange = event => {
     const inputValue = event.target.value;
-    this.setState({
-      currentFilterValue: inputValue
-    });
+    this.setState({ currentFilterValue: inputValue });
+
+    const val = (inputValue || '').trim();
+    if (val === '') {
+      this.clearTextSearch();
+      return;
+    }
+    const compact = val.replace(/\s/g, '');
+    if (!LABEL_REGEX.test(compact)) {
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+      this.debounceTimer = setTimeout(() => {
+        if (val !== '') {
+          this.applyTextSearch(val);
+        } // ▼ this.state 대신 캡처값 사용
+      }, 400);
+    } else if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
   };
 
   handleCloseFilterError = () => {
@@ -112,13 +209,18 @@ class LabelFilter extends Component {
 
   render() {
     const { filters, intl } = this.props;
-
-    const { currentFilterValue, filterMessage, isValid, url, urlMessage } =
-      this.state;
+    const {
+      currentFilterValue,
+      filterMessage,
+      isValid,
+      url,
+      urlMessage,
+      textQuery
+    } = this.state;
 
     const searchDescription = intl.formatMessage({
       id: 'dashboard.labelFilter.searchPlaceholder',
-      defaultMessage: 'Input a label filter of the format labelKey:labelValue'
+      defaultMessage: 'Search by label (labelKey:labelValue) or free text'
     });
 
     return (
@@ -131,9 +233,10 @@ class LabelFilter extends Component {
             title={filterMessage}
             onCloseButtonClick={this.handleCloseFilterError}
           >
-            <Link href={url}>{urlMessage}</Link>
+            {url ? <Link href={url}>{urlMessage}</Link> : null}
           </ActionableNotification>
         )}
+
         <Form onSubmit={this.handleAddFilter} autoComplete="on">
           <Search
             placeholder={searchDescription}
@@ -142,6 +245,13 @@ class LabelFilter extends Component {
             value={currentFilterValue}
             name="filter-search"
             size="lg"
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                this.resetCurrentFilterValue();
+                this.clearTextSearch();
+              }
+            }}
           />
           <Button type="submit" className="tkn--visually-hidden">
             {intl.formatMessage({
@@ -150,11 +260,12 @@ class LabelFilter extends Component {
             })}
           </Button>
         </Form>
+
         <div className="tkn--filters">
           {filters.map(filter => (
             <Tag
               filter
-              key={filter}
+              key={`label-${filter}`}
               onClick={() => this.props.handleDeleteFilter(filter)}
               onClose={() => this.props.handleDeleteFilter(filter)}
               type="high-contrast"
@@ -162,11 +273,27 @@ class LabelFilter extends Component {
               {filter.replace(/=/g, ':')}
             </Tag>
           ))}
-          {filters.length > 0 && (
+
+          {textQuery ? (
+            <Tag
+              filter
+              key="__text_query__"
+              onClick={this.clearTextSearch}
+              onClose={this.clearTextSearch}
+              type="high-contrast"
+            >
+              {textQuery}
+            </Tag>
+          ) : null}
+
+          {(filters.length > 0 || textQuery) && (
             <Button
               kind="ghost"
               size="sm"
-              onClick={this.props.handleClearFilters}
+              onClick={() => {
+                this.props.handleClearFilters();
+                this.clearTextSearch();
+              }}
             >
               {intl.formatMessage({
                 id: 'dashboard.labelFilter.clearAll',
