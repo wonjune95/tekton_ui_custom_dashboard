@@ -237,13 +237,6 @@ export function PipelineRuns() {
       },
       {
         actionText: intl.formatMessage({
-          id: 'dashboard.editAndRun.actionText',
-          defaultMessage: 'Edit and run'
-        }),
-        action: editAndRun
-      },
-      {
-        actionText: intl.formatMessage({
           id: 'dashboard.startRun.actionText',
           defaultMessage: 'Start'
         }),
@@ -254,6 +247,13 @@ export function PipelineRuns() {
           const { reason, status } = getStatus(resource);
           return isRunning(reason, status);
         }
+      },
+      {
+        actionText: intl.formatMessage({
+          id: 'dashboard.editAndRun.actionText',
+          defaultMessage: 'Edit and run'
+        }),
+        action: editAndRun
       },
       {
         actionText: intl.formatMessage({
