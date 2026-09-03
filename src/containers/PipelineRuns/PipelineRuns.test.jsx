@@ -214,6 +214,30 @@ describe('PipelineRuns container', () => {
     );
   });
 
+  // custom: 메뉴 순서는 Rerun -> Start -> Edit and run
+  it('lists the row actions in the customised order', async () => {
+    vi.spyOn(API, 'useIsReadOnly').mockImplementation(() => false);
+    vi.spyOn(PipelineRunsAPI, 'usePipelineRuns').mockImplementation(() => ({
+      data: [pipelineRuns[2]]
+    }));
+    const { getAllByTitle, getByText } = renderWithRouter(
+      <PipelineRunsContainer />,
+      { path: paths.pipelineRuns.all(), route: urls.pipelineRuns.all() }
+    );
+
+    await waitFor(() => getByText(/pipelineRunPending/i));
+    fireEvent.click(getAllByTitle('Actions')[0]);
+    await waitFor(() => getByText('Start'));
+
+    const follows = (a, b) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const rerun = getByText('Rerun');
+    const start = getByText('Start');
+    const editAndRun = getByText('Edit and run');
+    expect(follows(rerun, start)).toBe(true);
+    expect(follows(start, editAndRun)).toBe(true);
+  });
+
   // custom: 'Start' creates a new PipelineRun from the existing spec rather
   // than un-pausing a Pending run, so run history is preserved
   it('handles start event in PipelineRuns page', async () => {
