@@ -1,5 +1,5 @@
 # ---------- 1) UI 빌드 (Node 24, package.json engines 기준) ----------
-FROM node:24-bookworm AS ui
+FROM node:26-bookworm AS ui
 WORKDIR /src
 
 # 의존성
@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build -- --outDir /ui-web --base ./
 
 # ---------- 2) Go 빌드 (go.mod 기준) ----------
-FROM golang:1.26-bookworm AS gobuild
+FROM golang:1.27-bookworm AS gobuild
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 WORKDIR /work
 
