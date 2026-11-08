@@ -1,5 +1,5 @@
 # ---------- 1) UI 빌드 (Node 24, package.json engines 기준) ----------
-FROM node:24-bookworm AS ui
+FROM node:25-bookworm AS ui
 WORKDIR /src
 
 # 의존성
