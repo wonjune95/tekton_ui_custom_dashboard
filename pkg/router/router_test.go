@@ -14,10 +14,14 @@ limitations under the License.
 package router
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/tektoncd/dashboard/pkg/auth"
 	"github.com/tektoncd/dashboard/pkg/endpoints"
 	"github.com/tektoncd/dashboard/pkg/logging"
 	"k8s.io/client-go/rest"
@@ -47,5 +51,56 @@ func TestProxyStripsClientIdentityWithoutAuth(t *testing.T) {
 	}
 	if got.Get("Impersonate-User") != "" || got.Get("Impersonate-Group") != "" {
 		t.Fatalf("impersonation headers reached the API server: %v", got)
+	}
+}
+
+func TestProtectedRoutesRequireLogin(t *testing.T) {
+	logging.InitLogger("error", "console")
+	var issuer string
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"issuer":                 issuer,
+			"authorization_endpoint": issuer + "/authorize",
+			"token_endpoint":         issuer + "/token",
+			"jwks_uri":               issuer + "/keys",
+		})
+	}))
+	defer idp.Close()
+	issuer = idp.URL
+
+	apiCalled := false
+	apiServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { apiCalled = true }))
+	defer apiServer.Close()
+
+	a, err := auth.New(context.Background(), auth.Config{
+		Issuer: issuer, ClientID: "c", ClientSecret: "s", RedirectURL: "https://d/auth/callback",
+		Prefix: "gitea:", SessionKey: bytes.Repeat([]byte{1}, 32),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := endpoints.Resource{Options: endpoints.Options{ExternalLogsURL: "http://logs"}}
+	server, err := Register(r, &rest.Config{Host: apiServer.URL}, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for path, want := range map[string]int{
+		"/api/v1/namespaces":            http.StatusUnauthorized,
+		"/apis/tekton.dev/v1/pipelines": http.StatusUnauthorized,
+		"/v1/properties":                http.StatusUnauthorized,
+		"/v1/logs-proxy/ns/pod/step":    http.StatusUnauthorized,
+		"/auth/me":                      http.StatusUnauthorized,
+		"/auth/login":                   http.StatusFound,
+		"/health":                       http.StatusOK,
+	} {
+		rec := httptest.NewRecorder()
+		server.handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != want {
+			t.Errorf("GET %s = %d, want %d", path, rec.Code, want)
+		}
+	}
+	if apiCalled {
+		t.Error("an unauthenticated request reached the API server")
 	}
 }
