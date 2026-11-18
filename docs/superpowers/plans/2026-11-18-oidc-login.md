@@ -18,7 +18,7 @@
 ## Global Constraints
 
 - `--oidc-issuer`가 비어 있으면 인증 OFF. 이때 upstream 동작은 바뀌지 않는다. 예외는 클라이언트 `Impersonate-*`/`Authorization` 헤더 제거로, 이것만 항상 적용한다.
-- prefix는 user와 group 모두 `--oidc-prefix`(기본 `gitea:`)를 쓴다. 빈 값이면 시작 에러다.
+- prefix: `--oidc-username-prefix`(기본 `""`), `--oidc-groups-prefix`(기본 `gitea:`, 빈 값이면 시작 에러). apiserver OIDC 매핑과 같게 둔다. (2026-11-19 변경: 처음에는 user·group 공통 `--oidc-prefix`였음)
 - 세션 쿠키는 `tkn-session`, 24h, `HttpOnly; Secure; SameSite=Lax; Path=/`다.
 - flow 쿠키는 `tkn-auth-flow`, 5분이다.
 - `SESSION_KEY` env는 32바이트를 base64로 인코딩한 값이다(`openssl rand -base64 32`).
@@ -76,7 +76,7 @@ func StripIdentityHeaders(h http.Header) {
 **Interfaces:**
 - Consumes: Task 1의 함수들
 - Produces:
-  - `type Config struct{Issuer, Name, ClientID, ClientSecret, RedirectURL, UsernameClaim, GroupsClaim, Prefix, CAFile string; InsecureSkipVerify bool; SessionKey []byte}`
+  - `type Config struct{Issuer, Name, ClientID, ClientSecret, RedirectURL, UsernameClaim, GroupsClaim, UsernamePrefix, GroupsPrefix, CAFile string; InsecureSkipVerify bool; SessionKey []byte}`
   - `New(ctx context.Context, cfg Config) (*Auth, error)`
   - `(*Auth).Register(mux *http.ServeMux)`
   - `(*Auth).Require(http.Handler) http.Handler`
@@ -85,7 +85,7 @@ func StripIdentityHeaders(h http.Header) {
 - [ ] Step 1: 테스트 작성. 시나리오:
   - `New` 검증: secret 없음, prefix 빈 값, key 길이 오류 → 에러
   - `Require`: 쿠키 없음 → 401, 유효 세션 → 통과
-  - `Impersonate`: 클라이언트 `Impersonate-Group: system:masters`, `Authorization`, `Cookie` 제거 → `Impersonate-User: gitea:alice`, `Impersonate-Group: [gitea:org, gitea:org:admins]`
+  - `Impersonate`: 클라이언트 `Impersonate-Group: system:masters`, `Authorization`, `Cookie` 제거 → `Impersonate-User: alice`, `Impersonate-Group: [gitea:org, gitea:org:admins]`
   - 만료 세션 → 401
   - 전체 흐름: `/auth/login?return=/%23/pipelineruns` → 302(authorize URL, flow 쿠키) → 가짜 서버가 id_token(groups 포함) 발급 → `/auth/callback?code=c&state=<state>` → 302 `/#/pipelineruns` + `tkn-session` → 그 쿠키로 `/auth/me` 200 `{"user":"alice","groups":[...]}`
   - id_token에 groups가 없으면 userinfo의 groups 사용
@@ -127,7 +127,7 @@ func StripIdentityHeaders(h http.Header) {
   mux.Handle("/v1/properties", protect(http.HandlerFunc(r.GetProperties)))
   // logs-proxy도 protect
   ```
-- [ ] Step 2: main에 플래그 `--oidc-issuer`, `--oidc-name`(Gitea), `--oidc-client-id`, `--oidc-redirect-url`, `--oidc-username-claim`(preferred_username), `--oidc-groups-claim`(groups), `--oidc-prefix`(gitea:), `--oidc-ca-file`, `--oidc-insecure-skip-verify`를 추가한다.
+- [ ] Step 2: main에 플래그 `--oidc-issuer`, `--oidc-name`(Gitea), `--oidc-client-id`, `--oidc-redirect-url`, `--oidc-username-claim`(preferred_username), `--oidc-groups-claim`(groups), `--oidc-username-prefix`(""), `--oidc-groups-prefix`(gitea:), `--oidc-ca-file`, `--oidc-insecure-skip-verify`를 추가한다.
   - env `OIDC_CLIENT_SECRET`과 `SESSION_KEY`(base64 decode)를 읽는다.
   - issuer가 설정돼 있으면 `auth.New`를 호출하고, 실패하면 `Fatalf`로 종료한다.
   - 이때 `options.LogoutURL = "/auth/logout"`로 설정한다.

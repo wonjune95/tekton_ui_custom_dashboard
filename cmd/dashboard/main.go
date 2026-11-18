@@ -48,7 +48,8 @@ var (
 	oidcRedirectURL   = flag.String("oidc-redirect-url", "", "OIDC redirect URL, e.g. https://dashboard.example.com/auth/callback")
 	oidcUsernameClaim = flag.String("oidc-username-claim", "preferred_username", "ID token claim used as the username")
 	oidcGroupsClaim   = flag.String("oidc-groups-claim", "groups", "ID token or userinfo claim used as the groups")
-	oidcPrefix        = flag.String("oidc-prefix", "gitea:", "Prefix added to the username and every group when impersonating. Must not be empty")
+	oidcUserPrefix    = flag.String("oidc-username-prefix", "", "Prefix added to the username when impersonating. Match the API server's OIDC username prefix")
+	oidcGroupsPrefix  = flag.String("oidc-groups-prefix", "gitea:", "Prefix added to every group when impersonating. Match the API server's OIDC groups prefix. Must not be empty")
 	oidcCAFile        = flag.String("oidc-ca-file", "", "PEM file with CA certificates trusted for the OIDC issuer")
 	oidcInsecure      = flag.Bool("oidc-insecure-skip-verify", false, "Skip TLS verification of the OIDC issuer (not recommended)")
 )
@@ -103,7 +104,8 @@ func main() {
 			RedirectURL:        *oidcRedirectURL,
 			UsernameClaim:      *oidcUsernameClaim,
 			GroupsClaim:        *oidcGroupsClaim,
-			Prefix:             *oidcPrefix,
+			UsernamePrefix:     *oidcUserPrefix,
+			GroupsPrefix:       *oidcGroupsPrefix,
 			CAFile:             *oidcCAFile,
 			InsecureSkipVerify: *oidcInsecure,
 			SessionKey:         sessionKey,

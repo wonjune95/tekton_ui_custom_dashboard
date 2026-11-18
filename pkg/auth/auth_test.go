@@ -40,6 +40,7 @@ type fakeIdP struct {
 	key            *rsa.PrivateKey
 	nonce          string // copied from the authorize URL by the test
 	badNonce       bool
+	username       string // preferred_username, defaults to alice
 	tokenGroups    []string
 	userinfoGroups []string
 }
@@ -81,6 +82,9 @@ func newFakeIdP(t *testing.T) *fakeIdP {
 			"iat":                time.Now().Unix(),
 			"nonce":              f.nonce,
 			"preferred_username": "alice",
+		}
+		if f.username != "" {
+			claims["preferred_username"] = f.username
 		}
 		if f.badNonce {
 			claims["nonce"] = "replayed"
@@ -132,7 +136,7 @@ func testConfig(issuer string) Config {
 		ClientID:     "dashboard",
 		ClientSecret: "secret",
 		RedirectURL:  "https://dashboard.example/auth/callback",
-		Prefix:       "gitea:",
+		GroupsPrefix: "gitea:",
 		SessionKey:   testKey,
 	}
 }
@@ -191,10 +195,10 @@ func login(t *testing.T, idp *fakeIdP, mux http.Handler, tamperState bool) *http
 
 func TestNewRejectsIncompleteConfig(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
-		"no secret":   func(c *Config) { c.ClientSecret = "" },
-		"no redirect": func(c *Config) { c.RedirectURL = "" },
-		"no prefix":   func(c *Config) { c.Prefix = "" },
-		"short key":   func(c *Config) { c.SessionKey = testKey[:16] },
+		"no secret":        func(c *Config) { c.ClientSecret = "" },
+		"no redirect":      func(c *Config) { c.RedirectURL = "" },
+		"no groups prefix": func(c *Config) { c.GroupsPrefix = "" },
+		"short key":        func(c *Config) { c.SessionKey = testKey[:16] },
 	} {
 		cfg := testConfig("https://unused.example")
 		mutate(&cfg)
@@ -268,6 +272,18 @@ func TestCallbackRejectsNonceMismatch(t *testing.T) {
 	}
 }
 
+// Kubernetes reserves "system:" names; with no username prefix (matching the
+// API server's OIDC mapping) a colon would allow e.g. system:kube-controller-manager.
+func TestCallbackRejectsUsernameWithColon(t *testing.T) {
+	idp := newFakeIdP(t)
+	idp.username = "system:kube-controller-manager"
+	_, mux := newTestAuth(t, idp)
+
+	if loc := login(t, idp, mux, false).Header().Get("Location"); loc != "/#/login?error=invalid_username" {
+		t.Fatalf("Location = %q", loc)
+	}
+}
+
 func TestMeWithoutSession(t *testing.T) {
 	idp := newFakeIdP(t)
 	_, mux := newTestAuth(t, idp)
@@ -316,11 +332,20 @@ func TestImpersonateReplacesClientIdentity(t *testing.T) {
 	if got.Get("Authorization") != "" || got.Get("Cookie") != "" || got.Get("Impersonate-Extra-Scopes") != "" {
 		t.Errorf("client identity leaked: %v", got)
 	}
-	if u := got.Values("Impersonate-User"); !reflect.DeepEqual(u, []string{"gitea:alice"}) {
+	// Same mapping as the API server's OIDC config: bare username, prefixed groups
+	if u := got.Values("Impersonate-User"); !reflect.DeepEqual(u, []string{"alice"}) {
 		t.Errorf("Impersonate-User = %v", u)
 	}
 	if g := got.Values("Impersonate-Group"); !reflect.DeepEqual(g, []string{"gitea:org", "gitea:org:admins"}) {
 		t.Errorf("Impersonate-Group = %v", g)
+	}
+
+	a.cfg.UsernamePrefix = "oidc:"
+	req = httptest.NewRequest(http.MethodGet, "/apis/tekton.dev/v1/pipelineruns", nil)
+	req.AddCookie(sessionCookieFor(t, a, Session{User: "alice", Exp: time.Now().Add(time.Hour).Unix()}))
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if u := got.Get("Impersonate-User"); u != "oidc:alice" {
+		t.Errorf("Impersonate-User with username prefix = %q", u)
 	}
 }
 

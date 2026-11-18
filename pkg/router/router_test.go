@@ -74,7 +74,7 @@ func TestProtectedRoutesRequireLogin(t *testing.T) {
 
 	a, err := auth.New(context.Background(), auth.Config{
 		Issuer: issuer, ClientID: "c", ClientSecret: "s", RedirectURL: "https://d/auth/callback",
-		Prefix: "gitea:", SessionKey: bytes.Repeat([]byte{1}, 32),
+		GroupsPrefix: "gitea:", SessionKey: bytes.Repeat([]byte{1}, 32),
 	})
 	if err != nil {
 		t.Fatal(err)

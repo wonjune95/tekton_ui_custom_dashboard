@@ -24,7 +24,7 @@
 |---|---|---|
 | 구현 위치 | Go 백엔드에 OIDC 내장 | ArgoCD와 같은 자체 로그인 화면. 별도 컴포넌트가 없다. |
 | 권한 모델 | k8s Impersonation | 권한 판단을 k8s RBAC에 위임한다. 대시보드에 정책 엔진이 필요 없다. |
-| user/group prefix | 둘 다 `gitea:` | Gitea 조직·팀 이름으로 `system:masters` 같은 k8s 내부 그룹이나 사용자를 사칭하지 못하게 막는다. 기존 바인딩 `gitea:oauth_organization`과 형식이 같다. |
+| user/group prefix | user 없음, group `gitea:` (각각 플래그로 지정) | NKS apiserver가 같은 Gitea client를 OIDC로 이미 신뢰하고 있다. 기존 바인딩도 `cicdbot`(user, prefix 없음), `gitea:oauth_organization:*`(group)으로 걸려 있어 이 규칙에 맞춘다. group prefix는 필수로 두어 `system:masters` 사칭을 막고, username은 `:`가 들어 있으면 거부한다(2026-11-19 클러스터 확인 후 변경). |
 | 세션 | AES-GCM 암호화 쿠키, 24h 고정 | ArgoCD 기본값과 같다. 서버에 상태가 없어 replica 확장이 자유롭다. stdlib만 사용한다. |
 | 그룹 소스 | ID 토큰 `groups` → 없으면 userinfo | ArgoCD `enableUserInfoGroups`와 같은 방식 |
 | 인증 OFF | `--oidc-issuer`가 비어 있으면 upstream 동작 그대로 | 로컬 개발과 upstream rebase를 쉽게 유지한다 |
@@ -64,7 +64,7 @@
 k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서로 처리한다.
 
 1. 들어온 요청에서 `Authorization`과 `Impersonate-*` 헤더(대소문자 무관, `Impersonate-Extra-*` 포함)를 **모두 제거**한다.
-2. `Impersonate-User: gitea:<user>`를 붙인다.
+2. `Impersonate-User: <username-prefix><user>`를 붙인다(기본 prefix 없음).
 3. 그룹마다 `Impersonate-Group: gitea:<group>`을 붙인다.
 
 - 웹소켓 업그레이드(로그 스트리밍, watch)는 `proxy.MirrorRequest`로 헤더가 그대로 전달되므로 같은 방식으로 적용된다.
@@ -82,7 +82,8 @@ k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서
 | `--oidc-redirect-url` | | 예: `https://tekton.180-210-89-135.nip.io/auth/callback` |
 | `--oidc-username-claim` | `preferred_username` | |
 | `--oidc-groups-claim` | `groups` | |
-| `--oidc-prefix` | `gitea:` | user와 group 모두에 적용. 빈 값은 허용하지 않는다(시작 시 에러) |
+| `--oidc-username-prefix` | `""` | apiserver OIDC username prefix와 같은 값. username에 `:`가 들어 있으면 로그인 거부 |
+| `--oidc-groups-prefix` | `gitea:` | apiserver OIDC groups prefix와 같은 값. 빈 값은 허용하지 않는다(시작 시 에러) |
 | `--oidc-ca-file` | `""` | 자체 서명 인증서용 CA |
 | `--oidc-insecure-skip-verify` | `false` | ArgoCD `oidc.tls.insecure.skip.verify`에 해당하는 비상 옵션 |
 | env `OIDC_CLIENT_SECRET` | | Secret `tekton-dashboard-oidc`에서 주입 |
@@ -116,16 +117,15 @@ k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서
   - 따라서 SA 토큰이 탈취되면 cluster-admin과 같은 위험이 있고, 실제 방어선은 3.3의 헤더 제거와 prefix 강제 코드다. 이 코드에는 반드시 테스트를 둔다.
 - **Deployment**: `300-deployment.yaml`과 installer는 수정하지 않는다(rebase 영향 최소화). OIDC args와 Secret env는 README의 `kubectl set env --from=secret/...`, `kubectl patch` 명령으로 적용한다. RBAC는 `config/oidc-impersonator.yaml`(kustomization 미포함)에 둔다.
 - **예시 바인딩** (`config/` 밖, README 예시로만 둔다):
-  - `gitea:oauth_organization:admins` → `tekton-dashboard-backend-edit` (ClusterRoleBinding)
-  - `gitea:oauth_organization:viewers` → `tekton-dashboard-backend-view`
-  - 네임스페이스 단위 실행 권한은 기존처럼 `tekton-dashboard-tenant-runners` RoleBinding에 `gitea:<user>` 또는 `gitea:<group>`으로 건다.
+  - 이미 있음(tekton_pipeline_manager `01-5`): `gitea:oauth_organization:admins` → `tekton-editor-global`, `gitea:oauth_organization:viewers` → `tekton-reviewer-global`
+  - 네임스페이스 단위 실행 권한은 기존처럼 `tekton-dashboard-tenant-runners` RoleBinding에 `<user>` 또는 `gitea:<group>`으로 건다.
 
 ## 6. 전환 절차 (클러스터)
 
 1. Gitea에 OAuth2 앱을 새로 등록한다(redirect `https://tekton.180-210-89-135.nip.io/auth/callback`). 이어서 Secret `tekton-dashboard-oidc`를 생성한다.
 2. 새 이미지와 RBAC를 배포한다. 이 시점에는 oauth2-proxy가 앞에 있으므로 사용자 영향이 없다.
-3. 기존 runners RoleBinding 4개(`fastapi-cicd`, `petclinic-cicd`, `react-template-cicd`, `tekton-catalog`)의 사용자 `cicdbot`, `devopsmanager`를 `gitea:cicdbot`, `gitea:devopsmanager`로 바꾼다. admins/viewers 그룹 바인딩도 추가한다.
-4. `kubectl auth can-i ... --as=gitea:<user> --as-group=gitea:oauth_organization:<team>`으로 권한을 미리 확인한다.
+3. (기존 바인딩이 이미 apiserver OIDC 규칙과 같으므로 바인딩 수정은 필요 없다.)
+4. `kubectl auth can-i ... --as=<user> --as-group=gitea:oauth_organization:<team>`으로 권한을 미리 확인한다.
 5. `tekton-route`의 backendRef를 `tekton-dashboard:9097`로 변경하고 `oauth2-route`를 삭제한다.
 6. admins 계정과 viewers 계정으로 각각 로그인해 동작을 확인한다. 확인되면 oauth2-proxy Deployment, Service, ConfigMap을 삭제한다.
 7. tenant와 tenant-runners 바인딩에서 SA `tekton-dashboard`를 제거한다. SA에는 impersonator와 `backend-view`(properties용)만 남긴다.
@@ -136,7 +136,8 @@ k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서
 
 **Go (`pkg/auth`, `pkg/router`)**
 - 세션이 없으면 보호 경로는 401, 공개 경로는 통과
-- 클라이언트가 보낸 `Authorization`, `Impersonate-User`, `Impersonate-Group`, `Impersonate-Extra-*`가 제거되고 `gitea:` prefix 값으로 대체됨
+- 클라이언트가 보낸 `Authorization`, `Impersonate-User`, `Impersonate-Group`, `Impersonate-Extra-*`가 제거되고 세션 값(user는 username prefix, group은 `gitea:`)으로 대체됨
+- username에 `:`가 들어 있으면 `/#/login?error=invalid_username`
 - 세션 쿠키: 정상 왕복, 변조 시 거부, 만료 시 거부
 - `return` 검증: `/x` 허용, `//evil`, `/\evil`, `https://evil`은 `/`로 처리
 - callback 정상 흐름: httptest로 가짜 OIDC 서버(discovery, JWKS, token)를 띄워 1건 검증. state 불일치 시 에러 리다이렉트도 1건 검증

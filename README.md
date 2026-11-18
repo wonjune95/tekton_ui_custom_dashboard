@@ -54,7 +54,8 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 ### 6. OIDC 로그인 (ArgoCD 방식)
 
 * `--oidc-issuer`를 설정하면 대시보드 자체 로그인 화면(**LOG IN VIA GITEA**)이 생깁니다.
-* 로그인한 사용자의 k8s API 요청은 **Impersonation**으로 처리합니다. 사용자는 `gitea:<username>`, 그룹은 `gitea:<group>`으로 요청합니다.
+* 로그인한 사용자의 k8s API 요청은 **Impersonation**으로 처리합니다. 사용자는 `<username>`, 그룹은 `gitea:<group>`으로 요청합니다.
+  이 매핑은 NKS apiserver의 Gitea OIDC 매핑(kubectl 로그인 시 적용되는 규칙)과 같습니다. 따라서 기존 RoleBinding을 그대로 씁니다.
   권한은 클러스터 RoleBinding이 결정합니다. 대시보드 SA 권한이 사용자에게 그대로 넘어가지 않습니다.
 * 세션은 암호화 쿠키(24h)에 저장되고, 그룹은 ID 토큰의 `groups` 클레임에서 가져옵니다. 클레임이 없으면 userinfo에서 가져옵니다.
 * `--oidc-issuer`가 비어 있으면 기존 동작 그대로입니다(로그인 없음).
@@ -86,13 +87,12 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 4. 그룹에 권한을 겁니다(Gitea 그룹 형식은 `<org>` / `<org>:<team>`).
 
    ```sh
-   kubectl create clusterrolebinding tekton-dashboard-gitea-admins \
-     --clusterrole=tekton-dashboard-backend-edit --group=gitea:oauth_organization:admins
-   kubectl create clusterrolebinding tekton-dashboard-gitea-viewers \
-     --clusterrole=tekton-dashboard-backend-view --group=gitea:oauth_organization:viewers
+   # tekton_pipeline_manager(01-5.init-tekton-group-role)가 만드는 바인딩이 이미 있으면 생략
+   #   tekton-editor-global   -> gitea:oauth_organization:admins
+   #   tekton-reviewer-global -> gitea:oauth_organization:viewers
    # 사전 확인
    kubectl auth can-i create pipelineruns -n fastapi-cicd \
-     --as=gitea:alice --as-group=gitea:oauth_organization:viewers
+     --as=alice --as-group=gitea:oauth_organization:viewers
    ```
 
 | 플래그 | 기본값 | 설명 |
@@ -100,7 +100,8 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 | `--oidc-issuer` | | 설정 시 로그인 활성화 |
 | `--oidc-client-id` / `--oidc-redirect-url` | | 필수 |
 | `--oidc-name` | `Gitea` | 로그인 버튼 문구 |
-| `--oidc-prefix` | `gitea:` | user·group 공통 prefix(빈 값 불가: `system:masters` 사칭 방지) |
+| `--oidc-username-prefix` | `""` | apiserver OIDC username prefix와 동일하게 설정. `:`가 들어간 username은 로그인 거부 |
+| `--oidc-groups-prefix` | `gitea:` | apiserver OIDC groups prefix와 동일하게 설정. 빈 값 불가(`system:masters` 사칭 방지) |
 | `--oidc-username-claim` / `--oidc-groups-claim` | `preferred_username` / `groups` | |
 | `--oidc-ca-file` | | 자체 서명 인증서 CA(PEM) |
 | `--oidc-insecure-skip-verify` | `false` | 비상용 |

@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -50,7 +51,8 @@ type Config struct {
 	RedirectURL        string
 	UsernameClaim      string
 	GroupsClaim        string
-	Prefix             string // prepended to both user and group names when impersonating
+	UsernamePrefix     string // prepended to the username when impersonating, may be empty
+	GroupsPrefix       string // prepended to every group when impersonating, required
 	CAFile             string
 	InsecureSkipVerify bool
 	SessionKey         []byte
@@ -87,10 +89,10 @@ func New(ctx context.Context, cfg Config) (*Auth, error) {
 		return nil, errors.New("oidc client secret is required")
 	case cfg.RedirectURL == "":
 		return nil, errors.New("oidc redirect url is required")
-	case cfg.Prefix == "":
+	case cfg.GroupsPrefix == "":
 		// Without a prefix an IdP group named e.g. system:masters would map to a
 		// privileged Kubernetes group.
-		return nil, errors.New("oidc prefix must not be empty")
+		return nil, errors.New("oidc groups prefix must not be empty")
 	}
 	if cfg.UsernameClaim == "" {
 		cfg.UsernameClaim = "preferred_username"
@@ -184,9 +186,9 @@ func (a *Auth) Impersonate(h http.Handler) http.Handler {
 		}
 		StripIdentityHeaders(r.Header)
 		r.Header.Del("Cookie") // the API server has no use for the session cookie
-		r.Header.Set("Impersonate-User", a.cfg.Prefix+s.User)
+		r.Header.Set("Impersonate-User", a.cfg.UsernamePrefix+s.User)
 		for _, g := range s.Groups {
-			r.Header.Add("Impersonate-Group", a.cfg.Prefix+g)
+			r.Header.Add("Impersonate-Group", a.cfg.GroupsPrefix+g)
 		}
 		h.ServeHTTP(w, r)
 	})
@@ -276,6 +278,11 @@ func (a *Auth) callback(w http.ResponseWriter, r *http.Request) {
 	user, _ := claims[a.cfg.UsernameClaim].(string)
 	if user == "" {
 		fail("no_username", fmt.Errorf("claim %q missing", a.cfg.UsernameClaim))
+		return
+	}
+	if strings.Contains(user, ":") {
+		// Keeps users out of the reserved system: namespace even without a username prefix
+		fail("invalid_username", fmt.Errorf("username %q contains ':'", user))
 		return
 	}
 	groups, found := stringSlice(claims[a.cfg.GroupsClaim])
