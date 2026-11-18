@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tektoncd/dashboard/pkg/auth"
 	"github.com/tektoncd/dashboard/pkg/csrf"
 	"github.com/tektoncd/dashboard/pkg/endpoints"
 	logging "github.com/tektoncd/dashboard/pkg/logging"
@@ -74,15 +75,15 @@ func registerReadinessProbe(r endpoints.Resource, mux *http.ServeMux) {
 
 // registerPropertiesEndpoint adds the endpoint for obtaining any properties we
 // want to serve.
-func registerPropertiesEndpoint(r endpoints.Resource, mux *http.ServeMux) {
+func registerPropertiesEndpoint(r endpoints.Resource, mux *http.ServeMux, protect func(http.Handler) http.Handler) {
 	logging.Log.Info("Adding API for properties")
-	mux.HandleFunc("/v1/properties", r.GetProperties)
+	mux.Handle("/v1/properties", protect(http.HandlerFunc(r.GetProperties)))
 }
 
-func registerLogsProxy(r endpoints.Resource, mux *http.ServeMux) {
+func registerLogsProxy(r endpoints.Resource, mux *http.ServeMux, protect func(http.Handler) http.Handler) {
 	if r.Options.ExternalLogsURL != "" {
 		logging.Log.Info("Adding API for logs proxy")
-		mux.HandleFunc("/v1/logs-proxy/", r.LogsProxy)
+		mux.Handle("/v1/logs-proxy/", protect(http.HandlerFunc(r.LogsProxy)))
 	}
 }
 
@@ -122,8 +123,10 @@ func makeUpgradeTransport(config *rest.Config, keepalive time.Duration) (proxy.U
 	return proxy.NewUpgradeRequestRoundTripper(rt, upgrader), nil
 }
 
-// Register returns a HTTP handler with the Dashboard and Kubernetes APIs registered
-func Register(r endpoints.Resource, cfg *rest.Config) (*Server, error) {
+// Register returns a HTTP handler with the Dashboard and Kubernetes APIs registered.
+// When a is non-nil the APIs require a login and Kubernetes requests are made
+// as the logged in user; static web resources and probes stay public.
+func Register(r endpoints.Resource, cfg *rest.Config, a *auth.Auth) (*Server, error) {
 	logging.Log.Info("Adding Kube API")
 	apiProxyPrefix := "/api/"
 	apisProxyPrefix := "/apis/"
@@ -132,15 +135,26 @@ func Register(r endpoints.Resource, cfg *rest.Config) (*Server, error) {
 		return nil, err
 	}
 	mux := http.NewServeMux()
-	mux.Handle(apiProxyPrefix, proxyHandler)
-	mux.Handle(apisProxyPrefix, proxyHandler)
+
+	protect := func(h http.Handler) http.Handler { return h }
+	// Always drop client-supplied identity: the service account may hold the
+	// impersonate permission, which must never be usable by the client directly.
+	impersonate := auth.StripIdentity
+	if a != nil {
+		logging.Log.Info("Adding OIDC login")
+		protect, impersonate = a.Require, a.Impersonate
+		a.Register(mux)
+	}
+
+	mux.Handle(apiProxyPrefix, impersonate(proxyHandler))
+	mux.Handle(apisProxyPrefix, impersonate(proxyHandler))
 
 	logging.Log.Info("Adding Dashboard APIs")
 	registerWeb(r, mux)
-	registerPropertiesEndpoint(r, mux)
+	registerPropertiesEndpoint(r, mux, protect)
 	registerHealthProbe(r, mux)
 	registerReadinessProbe(r, mux)
-	registerLogsProxy(r, mux)
+	registerLogsProxy(r, mux, protect)
 
 	return &Server{handler: mux}, nil
 }
