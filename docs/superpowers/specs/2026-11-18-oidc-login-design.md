@@ -86,7 +86,7 @@ k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서
 | `--oidc-ca-file` | `""` | 자체 서명 인증서용 CA |
 | `--oidc-insecure-skip-verify` | `false` | ArgoCD `oidc.tls.insecure.skip.verify`에 해당하는 비상 옵션 |
 | env `OIDC_CLIENT_SECRET` | | Secret `tekton-dashboard-oidc`에서 주입 |
-| env `SESSION_KEY` | | 32바이트. 같은 Secret에서 주입 |
+| env `SESSION_KEY` | | 32바이트를 base64로 인코딩한 값(`openssl rand -base64 32`). 같은 Secret에서 주입 |
 
 - 인증이 켜져 있는데 필수 값(client-id, redirect-url, secret, 32바이트 key)이 없으면 **시작에 실패**한다(fail closed).
 - 로그인 버튼 문구(`oidcName`)는 `/auth/me`의 401 응답 본문 `{"oidcName": "Gitea"}`로 전달한다. `/v1/properties`는 보호 대상이라 로그인 화면에서 읽을 수 없기 때문이다.
