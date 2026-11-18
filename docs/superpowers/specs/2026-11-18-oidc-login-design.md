@@ -114,7 +114,7 @@ k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서
 - **신규 `ClusterRole tekton-dashboard-impersonator`**: `users`, `groups`에 `impersonate` 권한을 주고 SA `tekton-pipelines/tekton-dashboard`에 바인딩한다.
   - ⚠️ **한계**: k8s RBAC로는 impersonate 대상을 prefix로 제한할 수 없다.
   - 따라서 SA 토큰이 탈취되면 cluster-admin과 같은 위험이 있고, 실제 방어선은 3.3의 헤더 제거와 prefix 강제 코드다. 이 코드에는 반드시 테스트를 둔다.
-- **Deployment**: OIDC 플래그를 추가하고 Secret `tekton-dashboard-oidc`의 env를 연결한다. Secret은 커밋하지 않고 README에 생성 명령만 적는다.
+- **Deployment**: `300-deployment.yaml`과 installer는 수정하지 않는다(rebase 영향 최소화). OIDC args와 Secret env는 README의 `kubectl set env --from=secret/...`, `kubectl patch` 명령으로 적용한다. RBAC는 `config/oidc-impersonator.yaml`(kustomization 미포함)에 둔다.
 - **예시 바인딩** (`config/` 밖, README 예시로만 둔다):
   - `gitea:oauth_organization:admins` → `tekton-dashboard-backend-edit` (ClusterRoleBinding)
   - `gitea:oauth_organization:viewers` → `tekton-dashboard-backend-view`

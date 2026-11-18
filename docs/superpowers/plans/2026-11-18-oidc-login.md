@@ -166,8 +166,8 @@ func StripIdentityHeaders(h http.Header) {
 ### Task 5: 매니페스트와 문서
 
 **Files:**
-- Create: `config/204-clusterrole-impersonator.yaml`(ClusterRole과 ClusterRoleBinding), `kustomization.yaml`에 추가
-- Modify: `config/300-deployment.yaml` (oidc args placeholder, env secretKeyRef `optional: true`)
+- Create: `config/oidc-impersonator.yaml`(ClusterRole과 ClusterRoleBinding). OIDC를 쓸 때만 적용하므로 kustomization에는 넣지 않음
+- Deployment는 수정하지 않음(installer/rebase 영향 최소화). args·env 적용은 README의 `kubectl set env`/`patch` 명령으로 처리
 - Modify: `README.md` (기능 6, 커스텀 파일 표, Secret 생성, 바인딩 예시, 전환 절차 요약)
 
 - [ ] Step 1: 매니페스트를 작성한 뒤 `kubectl kustomize config >/dev/null`로 검증한다.
