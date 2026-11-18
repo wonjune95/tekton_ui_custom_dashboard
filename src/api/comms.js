@@ -94,6 +94,12 @@ export function checkStatus(response = {}, stream = false) {
     }
   }
 
+  // OIDC login enabled and no (valid) session: go log in, then come back here
+  if (response.status === 401 && !window.location.hash.startsWith('#/login')) {
+    const returnTo = `/${window.location.hash || '#/'}`;
+    window.location.assign(`/#/login?return=${encodeURIComponent(returnTo)}`);
+  }
+
   let { statusText } = response;
   if (!statusText && response.status === 404) {
     statusText = 'Not Found';

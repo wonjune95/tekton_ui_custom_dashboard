@@ -142,6 +142,8 @@
   "dashboard.loading": "로드 중…",
   "dashboard.loading.config": "구성 로드 중…",
   "dashboard.loading.resource": "{kind} 로드 중…",
+  "dashboard.login.button": "{provider}(으)로 로그인",
+  "dashboard.login.error": "로그인 실패",
   "dashboard.logo.alt": "Tekton 로고",
   "dashboard.logo.tooltip": "야옹",
   "dashboard.logs.downloadButtonTooltip": "로그 다운로드",

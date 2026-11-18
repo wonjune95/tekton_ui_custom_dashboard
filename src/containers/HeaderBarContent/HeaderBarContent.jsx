@@ -22,7 +22,11 @@ import { ALL_NAMESPACES, paths, urls } from '@tektoncd/dashboard-utils';
 
 import LogoutButton from '../LogoutButton';
 import NamespacesDropdown from '../NamespacesDropdown';
-import { useSelectedNamespace, useTenantNamespaces } from '../../api';
+import {
+  useCurrentUser,
+  useSelectedNamespace,
+  useTenantNamespaces
+} from '../../api';
 
 export default function HeaderBarContent() {
   const location = useLocation();
@@ -32,6 +36,7 @@ export default function HeaderBarContent() {
   const navigate = useNavigate();
   const params = useParams();
   const tenantNamespaces = useTenantNamespaces();
+  const { data: currentUser } = useCurrentUser();
 
   const { selectedNamespace: namespace, selectNamespace } =
     useSelectedNamespace();
@@ -98,6 +103,9 @@ export default function HeaderBarContent() {
         size="sm"
         titleText=""
       />
+      {currentUser?.user && (
+        <span className="tkn--header-user">{currentUser.user}</span>
+      )}
       <LogoutButton />
     </>
   );

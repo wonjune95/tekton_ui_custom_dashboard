@@ -530,3 +530,25 @@ it('useDefaultNamespace', async () => {
   );
   expect(defaultNamespacesResult.current).toEqual(defaultNamespace);
 });
+
+describe('useCurrentUser', () => {
+  it('returns the logged in user', async () => {
+    const me = { user: 'alice', groups: ['org:admins'] };
+    server.use(http.get(/\/auth\/me$/, () => HttpResponse.json(me)));
+    const { result } = renderHook(() => API.useCurrentUser(), {
+      wrapper: getAPIWrapper()
+    });
+    await waitFor(() => expect(result.current.data).toEqual(me));
+  });
+
+  it('returns null when login is not enabled', async () => {
+    server.use(
+      http.get(/\/auth\/me$/, () => new HttpResponse(null, { status: 404 }))
+    );
+    const { result } = renderHook(() => API.useCurrentUser(), {
+      wrapper: getAPIWrapper()
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBeNull();
+  });
+});
