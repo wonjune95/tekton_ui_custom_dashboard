@@ -8,8 +8,9 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 | 항목 | 값 |
 |---|---|
 | Upstream 기준 | [tektoncd/dashboard `v0.72.0`](https://github.com/tektoncd/dashboard/releases/tag/v0.72.0) |
-| 배포 버전 | `v0.72.0-custom` |
-| 이미지 | `harbor.114-110-181-178.nip.io/nnd/tekton-custom-dashboard:v0.72.0-custom` |
+| 배포 버전 | `v0.72.0-custom-oidc` |
+| 이미지 | `harbor.114-110-181-178.nip.io/nnd/tekton-custom-dashboard:v0.72.0-custom-oidc` |
+| 운영 주소 | https://tekton.180-210-89-135.nip.io (Gitea OIDC 로그인) |
 
 ---
 
@@ -53,19 +54,46 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 
 ### 6. OIDC 로그인 (ArgoCD 방식)
 
-* `--oidc-issuer`를 설정하면 대시보드 자체 로그인 화면(**LOG IN VIA GITEA**)이 생깁니다.
+* `--oidc-issuer`를 설정하면 대시보드 자체 로그인 화면이 생깁니다. ArgoCD처럼 좌우 분할 화면에 **Gitea(으)로 로그인** 버튼이 있고, 다크 모드와 모바일 화면에 맞춰 바뀝니다.
+* 헤더에 로그인한 사용자 이름과 로그아웃 버튼이 표시됩니다.
 * 로그인한 사용자의 k8s API 요청은 **Impersonation**으로 처리합니다. 사용자는 `<username>`, 그룹은 `gitea:<group>`으로 요청합니다.
   이 매핑은 NKS apiserver의 Gitea OIDC 매핑(kubectl 로그인 시 적용되는 규칙)과 같습니다. 따라서 기존 RoleBinding을 그대로 씁니다.
   권한은 클러스터 RoleBinding이 결정합니다. 대시보드 SA 권한이 사용자에게 그대로 넘어가지 않습니다.
 * 세션은 암호화 쿠키(24h)에 저장되고, 그룹은 ID 토큰의 `groups` 클레임에서 가져옵니다. 클레임이 없으면 userinfo에서 가져옵니다.
 * `--oidc-issuer`가 비어 있으면 기존 동작 그대로입니다(로그인 없음).
-* 설계: `docs/superpowers/specs/2026-11-18-oidc-login-design.md`
+* 설계와 구현 계획: `docs/superpowers/specs/2026-11-18-oidc-login-design.md`, `docs/superpowers/plans/2026-11-18-oidc-login.md`
+
+**현재 운영 구성** (`tekton-pipelines` 네임스페이스)
+
+| 항목 | 값 |
+|---|---|
+| Gitea OAuth 앱 | client_id `b6d505e4-…` (ArgoCD·NKS apiserver와 같은 앱) |
+| Redirect URL | `https://tekton.180-210-89-135.nip.io/oauth2/callback` (oauth2-proxy 시절 등록값 재사용) |
+| Secret | `tekton-dashboard-oidc` (`OIDC_CLIENT_SECRET`, `SESSION_KEY`) |
+| Gitea CA | ConfigMap `tekton-dashboard-oidc-ca` → `--oidc-ca-file=/etc/oidc-ca/ca.crt` (NND Internal CA, TLS 검증 유지) |
+| impersonate 권한 | ClusterRoleBinding `tekton-dashboard-impersonator` → SA `tekton-dashboard` |
+| 라우트 | HTTPRoute `tekton-route`, `oauth2-route` → `tekton-dashboard:9097` |
+
+| Gitea 소속 | 적용되는 k8s 권한 |
+|---|---|
+| `oauth_organization` admins 팀 | `tekton-editor-global` (Tekton 리소스 실행·수정·삭제) |
+| `oauth_organization` viewers 팀 | `tekton-reviewer-global` (조회 전용) |
+| `oauth_organization` 조직원 | `tekton-dashboard-tenant` (네임스페이스 목록 등 기본 조회) |
+| 소속 없음 | 로그인은 되지만 아무것도 보이지 않음 |
+
+롤백할 때는 **순서가 중요합니다.** 이전 이미지는 클라이언트가 보낸 `Impersonate-*` 헤더를 걸러내지 못하므로 impersonate 권한부터 회수해야 합니다.
+
+```sh
+kubectl delete clusterrolebinding tekton-dashboard-impersonator   # 반드시 먼저
+kubectl -n tekton-pipelines rollout undo deploy/tekton-dashboard
+# 이후 앞단 인증(oauth2-proxy 등)을 다시 연결
 
 <details>
 <summary>설정 방법</summary>
 
 1. Gitea → Site Administration → Integrations → OAuth2 Applications에서 앱을 등록합니다.
-   Redirect URI는 `https://<dashboard-host>/auth/callback`입니다.
+   Redirect URI는 `https://<dashboard-host>/auth/callback`입니다. 이미 등록된 URI(예: oauth2-proxy의 `/oauth2/callback`)를 그대로 써도 됩니다.
+   Gitea는 로그인한 뒤에야 redirect URI를 검사하므로, 등록이 빠지면 로그인 직후 `Unregistered Redirect URI` 오류가 납니다.
 2. Secret을 생성합니다.
 
    ```sh
@@ -84,6 +112,9 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
      {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--oidc-redirect-url=https://<dashboard-host>/auth/callback"}
    ]'
    ```
+
+   YAML 매니페스트로 쓸 때는 `"--oidc-groups-prefix=gitea:"`처럼 따옴표로 감싸야 합니다. 끝의 `:` 때문에 YAML이 매핑으로 해석합니다.
+   자체 서명 인증서라면 CA를 ConfigMap으로 마운트하고 `--oidc-ca-file`을 지정합니다(`--oidc-insecure-skip-verify`보다 권장).
 4. 그룹에 권한을 겁니다(Gitea 그룹 형식은 `<org>` / `<org>:<team>`).
 
    ```sh
@@ -117,7 +148,7 @@ kubectl -n tekton-pipelines get deploy tekton-dashboard -o json \
 ```
 
 * 로그인을 끄면 접속하는 누구나 대시보드 SA 권한으로 동작합니다. 앞단에 다른 인증을 두거나 내부망에서만 쓰세요.
-* 로그인이 꺼져 있어도 클라이언트가 보낸 `Impersonate-*` 헤더는 항상 제거됩니다. 오래 끈 채로 쓸 거라면 impersonate 권한(`config/oidc-impersonator.yaml`)도 회수하는 편이 깔끔합니다.
+* 로그인이 꺼져 있을 때 `Authorization` 헤더 없이 들어온 `Impersonate-*` 헤더는 제거됩니다(대시보드 SA 권한으로 다른 사용자를 사칭하는 것을 방지). 오래 끈 채로 쓸 거라면 impersonate 권한(`config/oidc-impersonator.yaml`)도 회수하는 편이 깔끔합니다.
 * 화면에서 켜고 끄는 스위치는 일부러 두지 않았습니다.
 * 로그인이 꺼진 상태에서 앞단 프록시가 `Authorization`을 넘기면(upstream의 oauth2-proxy·impersonation 프록시 방식) 헤더를 그대로 전달합니다.
 
@@ -165,20 +196,27 @@ upstream 갱신 시 이 파일들만 rebase 하면 됩니다.
 | `src/containers/HeaderBarContent/HeaderBarContent.jsx`, `src/containers/Header/_Header.scss` | 헤더 사용자 표시 |
 | `src/nls/messages_{en,ko}.json` | 로그인 문구 |
 | `config/oidc-impersonator.yaml` | impersonate 권한(OIDC 사용 시에만 적용) |
+| `docs/superpowers/` | OIDC 로그인 설계·구현 계획 |
 
 각 커스텀 동작에는 회귀 테스트가 붙어 있습니다 (`npm test`).
 
 ### 컨테이너 이미지 빌드 및 배포
 
 ```sh
-docker build -t harbor.114-110-181-178.nip.io/nnd/tekton-custom-dashboard:v0.72.0-custom .
-docker push  harbor.114-110-181-178.nip.io/nnd/tekton-custom-dashboard:v0.72.0-custom
+docker build -t harbor.114-110-181-178.nip.io/nnd/tekton-custom-dashboard:v0.72.0-custom-oidc .
+docker push  harbor.114-110-181-178.nip.io/nnd/tekton-custom-dashboard:v0.72.0-custom-oidc
 
 kubectl -n tekton-pipelines rollout restart deploy/tekton-dashboard
 kubectl -n tekton-pipelines rollout status  deploy/tekton-dashboard
 ```
 
 * 태그를 덮어쓰는 방식이므로 Deployment의 `imagePullPolicy`는 `Always` 로 설정되어 있습니다.
+* OIDC 이전 이미지(`v0.72.0-custom`)는 롤백용으로 레지스트리에 남겨 두었습니다.
+* 프론트엔드 테스트는 Node 24가 필요합니다. 호스트 Node가 낮으면 `node:24` 컨테이너에서 실행합니다.
+
+  ```sh
+  podman run --rm -v "$PWD":/w -w /w docker.io/library/node:24 sh -c 'npm run lint && npx vitest run'
+  ```
 * 화면에 표시되는 버전은 `dashboard-info` ConfigMap의 `version` 값입니다.
 
   ```sh
