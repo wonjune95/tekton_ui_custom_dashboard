@@ -40,6 +40,7 @@ import {
   Header,
   HeaderBarContent,
   LoadingShell,
+  Login,
   NotFound
 } from '..';
 
@@ -161,6 +162,10 @@ function Root() {
 }
 
 const router = createHashRouter([
+  {
+    path: '/login',
+    element: <Login />
+  },
   {
     path: '/',
     element: <Root />,

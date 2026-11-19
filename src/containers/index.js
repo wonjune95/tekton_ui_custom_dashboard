@@ -27,6 +27,7 @@ export { default as ImportResources } from './ImportResources';
 export { default as LabelFilter } from './LabelFilter';
 export { default as ListPageLayout } from './ListPageLayout';
 export { default as LoadingShell } from './LoadingShell';
+export { default as Login } from './Login';
 export { default as LogoutButton } from './LogoutButton';
 export { default as LogsToolbar } from './LogsToolbar';
 export { default as NamespacesDropdown } from './NamespacesDropdown';

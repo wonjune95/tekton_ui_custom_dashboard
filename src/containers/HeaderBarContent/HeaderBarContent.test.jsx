@@ -20,6 +20,14 @@ import * as APIUtils from '../../api/utils';
 import HeaderBarContent from './HeaderBarContent';
 
 describe('HeaderBarContent', () => {
+  it('shows the logged in user', async () => {
+    vi.spyOn(API, 'useCurrentUser').mockImplementation(() => ({
+      data: { user: 'alice', groups: [] }
+    }));
+    const { findByText } = renderWithRouter(<HeaderBarContent />);
+    await findByText('alice');
+  });
+
   it('selects namespace based on URL', () => {
     const namespace = 'default';
     const selectNamespace = vi.fn();

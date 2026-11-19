@@ -140,6 +140,26 @@ describe('checkStatus', () => {
     const status = 404;
     expect(() => checkStatus({ status })).toThrowError('Not Found');
   });
+
+  describe('on 401', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('sends the user to the login page and back afterwards', () => {
+      const assign = vi.fn();
+      vi.stubGlobal('location', { hash: '#/pipelineruns?x=1', assign });
+      expect(() => checkStatus({ status: 401 })).toThrow();
+      expect(assign).toHaveBeenCalledWith(
+        `/#/login?return=${encodeURIComponent('/#/pipelineruns?x=1')}`
+      );
+    });
+
+    it('does not redirect when already on the login page', () => {
+      const assign = vi.fn();
+      vi.stubGlobal('location', { hash: '#/login?return=%2F', assign });
+      expect(() => checkStatus({ status: 401 })).toThrow();
+      expect(assign).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('request', () => {

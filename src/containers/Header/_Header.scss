@@ -12,6 +12,7 @@ limitations under the License.
 */
 
 @use '@carbon/react/scss/config' as *;
+@use '@carbon/react/scss/theme' as *;
 
 header.#{$prefix}--header.tkn--header {
   .#{$prefix}--list-box__wrapper {
@@ -21,6 +22,12 @@ header.#{$prefix}--header.tkn--header {
     &:last-child {
       margin-inline-end: 2rem;
     }
+  }
+
+  .tkn--header-user {
+    align-self: center;
+    padding-inline-end: 0.5rem;
+    color: $text-secondary;
   }
 
   .tkn--logout-btn {

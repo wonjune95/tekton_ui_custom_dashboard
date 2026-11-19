@@ -51,6 +51,77 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 * 멀티스테이지 `Dockerfile` (UI 빌드 → Go 빌드 → distroless 런타임).
 * 개발 서버용 `/results-api` 프록시 설정 (`vite.config.js`).
 
+### 6. OIDC 로그인 (ArgoCD 방식)
+
+* `--oidc-issuer`를 설정하면 대시보드 자체 로그인 화면(**LOG IN VIA GITEA**)이 생깁니다.
+* 로그인한 사용자의 k8s API 요청은 **Impersonation**으로 처리합니다. 사용자는 `<username>`, 그룹은 `gitea:<group>`으로 요청합니다.
+  이 매핑은 NKS apiserver의 Gitea OIDC 매핑(kubectl 로그인 시 적용되는 규칙)과 같습니다. 따라서 기존 RoleBinding을 그대로 씁니다.
+  권한은 클러스터 RoleBinding이 결정합니다. 대시보드 SA 권한이 사용자에게 그대로 넘어가지 않습니다.
+* 세션은 암호화 쿠키(24h)에 저장되고, 그룹은 ID 토큰의 `groups` 클레임에서 가져옵니다. 클레임이 없으면 userinfo에서 가져옵니다.
+* `--oidc-issuer`가 비어 있으면 기존 동작 그대로입니다(로그인 없음).
+* 설계: `docs/superpowers/specs/2026-11-18-oidc-login-design.md`
+
+<details>
+<summary>설정 방법</summary>
+
+1. Gitea → Site Administration → Integrations → OAuth2 Applications에서 앱을 등록합니다.
+   Redirect URI는 `https://<dashboard-host>/auth/callback`입니다.
+2. Secret을 생성합니다.
+
+   ```sh
+   kubectl -n tekton-pipelines create secret generic tekton-dashboard-oidc \
+     --from-literal=OIDC_CLIENT_SECRET=<client-secret> \
+     --from-literal=SESSION_KEY="$(openssl rand -base64 32)"
+   ```
+3. impersonate 권한을 부여하고 Deployment에 설정을 추가합니다.
+
+   ```sh
+   kubectl apply -f config/oidc-impersonator.yaml
+   kubectl -n tekton-pipelines set env deploy/tekton-dashboard --from=secret/tekton-dashboard-oidc
+   kubectl -n tekton-pipelines patch deploy tekton-dashboard --type=json -p '[
+     {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--oidc-issuer=https://gitea.example.com"},
+     {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--oidc-client-id=<client-id>"},
+     {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--oidc-redirect-url=https://<dashboard-host>/auth/callback"}
+   ]'
+   ```
+4. 그룹에 권한을 겁니다(Gitea 그룹 형식은 `<org>` / `<org>:<team>`).
+
+   ```sh
+   # tekton_pipeline_manager(01-5.init-tekton-group-role)가 만드는 바인딩이 이미 있으면 생략
+   #   tekton-editor-global   -> gitea:oauth_organization:admins
+   #   tekton-reviewer-global -> gitea:oauth_organization:viewers
+   # 사전 확인
+   kubectl auth can-i create pipelineruns -n fastapi-cicd \
+     --as=alice --as-group=gitea:oauth_organization:viewers
+   ```
+
+| 플래그 | 기본값 | 설명 |
+|---|---|---|
+| `--oidc-issuer` | | 설정 시 로그인 활성화 |
+| `--oidc-client-id` / `--oidc-redirect-url` | | 필수. 콜백은 redirect URL의 경로에서 처리합니다. oauth2-proxy에서 넘어온다면 `https://<host>/oauth2/callback`를 그대로 써서 Gitea 등록을 재사용할 수 있습니다 |
+| `--oidc-name` | `Gitea` | 로그인 버튼 문구 |
+| `--oidc-username-prefix` | `""` | apiserver OIDC username prefix와 동일하게 설정. `:`가 들어간 username은 로그인 거부 |
+| `--oidc-groups-prefix` | `gitea:` | apiserver OIDC groups prefix와 동일하게 설정. 빈 값 불가(`system:masters` 사칭 방지) |
+| `--oidc-username-claim` / `--oidc-groups-claim` | `preferred_username` / `groups` | |
+| `--oidc-ca-file` | | 자체 서명 인증서 CA(PEM) |
+| `--oidc-insecure-skip-verify` | `false` | 비상용 |
+
+필수 값이 하나라도 빠지면 대시보드가 시작되지 않습니다(fail closed).
+
+**켜기/끄기**는 `--oidc-issuer` 값으로만 전환합니다. 빈 값이면 로그인이 꺼지고, 나머지 `--oidc-*` 인자는 무시됩니다.
+
+```sh
+# 끄기 (켜기는 반대로 issuer URL을 다시 넣음)
+kubectl -n tekton-pipelines get deploy tekton-dashboard -o json \
+  | sed 's|--oidc-issuer=https://gitea.example.com|--oidc-issuer=|' | kubectl apply -f -
+```
+
+* 로그인을 끄면 접속하는 누구나 대시보드 SA 권한으로 동작합니다. 앞단에 다른 인증을 두거나 내부망에서만 쓰세요.
+* 로그인이 꺼져 있어도 클라이언트가 보낸 `Impersonate-*` 헤더는 항상 제거됩니다. 오래 끈 채로 쓸 거라면 impersonate 권한(`config/oidc-impersonator.yaml`)도 회수하는 편이 깔끔합니다.
+* 화면에서 켜고 끄는 스위치는 일부러 두지 않았습니다.
+
+</details>
+
 ---
 
 ## 개발
@@ -60,6 +131,7 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 ```sh
 npm install
 npm run lint && npm test && npm run build   # 전체 검증
+go test ./...                               # 백엔드 (pkg/auth, pkg/router)
 npm start                                   # 개발 서버 (기본 8000 포트)
 ```
 
@@ -77,6 +149,13 @@ upstream 갱신 시 이 파일들만 rebase 하면 됩니다.
 | `src/containers/PipelineRun/PipelineRun.jsx` | 상세 액션 메뉴 (목록과 동일) |
 | `src/containers/ListPageLayout/ListPageLayout.jsx` | 페이지 사이즈 |
 | `Dockerfile`, `.dockerignore`, `vite.config.js` | 빌드 / 배포 |
+| `pkg/auth/` | OIDC 로그인, 세션 쿠키, impersonation |
+| `pkg/router/router.go`, `cmd/dashboard/main.go` | 보호 경로 래핑, OIDC 플래그 |
+| `src/containers/Login/`, `src/containers/App/App.jsx` | 로그인 페이지와 라우트 |
+| `src/api/comms.js`, `src/api/index.js` | 401 → 로그인 이동, `useCurrentUser` |
+| `src/containers/HeaderBarContent/HeaderBarContent.jsx`, `src/containers/Header/_Header.scss` | 헤더 사용자 표시 |
+| `src/nls/messages_{en,ko}.json` | 로그인 문구 |
+| `config/oidc-impersonator.yaml` | impersonate 권한(OIDC 사용 시에만 적용) |
 
 각 커스텀 동작에는 회귀 테스트가 붙어 있습니다 (`npm test`).
 

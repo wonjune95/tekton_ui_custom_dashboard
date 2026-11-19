@@ -253,6 +253,21 @@ export function useProperties() {
   });
 }
 
+// Returns { user, groups } when OIDC login is enabled, otherwise null
+export function useCurrentUser() {
+  return useQuery({
+    queryKey: ['currentUser'],
+    queryFn: async () => {
+      const response = await fetch(
+        `${getAPIRoot({ isDashboardAPI: true })}/auth/me`,
+        { credentials: 'same-origin' }
+      );
+      return response.ok ? response.json() : null;
+    },
+    placeholderData: null
+  });
+}
+
 export function useDashboardNamespace() {
   const { data } = useProperties();
   return data.dashboardNamespace;

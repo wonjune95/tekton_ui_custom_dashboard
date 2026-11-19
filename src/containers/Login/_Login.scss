@@ -1,0 +1,154 @@
+/*
+Copyright 2026 The Tekton Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+@use '@carbon/react/scss/breakpoint' as *;
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/theme' as *;
+@use '@carbon/react/scss/type' as *;
+
+// Brand colours from the Tekton logo gradient
+$tkn-login-purple: #a677b4;
+$tkn-login-red: #f0515a;
+
+.tkn--login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-block-size: 100vh;
+  background: $background;
+
+  @include breakpoint-down(md) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+}
+
+// Always dark, whatever the selected theme, like ArgoCD's login
+.tkn--login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-07;
+  padding: $spacing-10 $spacing-07;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 20% 15%,
+      rgba($tkn-login-purple, 0.28),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 85% 90%,
+      rgba($tkn-login-red, 0.22),
+      transparent 50%
+    ),
+    #161616;
+  color: #f4f4f4;
+
+  @include breakpoint-down(md) {
+    gap: $spacing-05;
+    padding: $spacing-08 $spacing-05;
+  }
+}
+
+.tkn--login-logo {
+  inline-size: 9rem;
+  block-size: auto;
+
+  @include breakpoint-down(md) {
+    inline-size: 5rem;
+  }
+}
+
+.tkn--login-tagline {
+  @include type-style('productive-heading-03');
+
+  max-inline-size: 22rem;
+  color: #c6c6c6;
+  text-align: center;
+}
+
+.tkn--login-pattern {
+  inline-size: min(100%, 26rem);
+  block-size: auto;
+  margin-block-start: $spacing-07;
+
+  line {
+    stroke: rgba(#f4f4f4, 0.18);
+    stroke-width: 2;
+  }
+
+  circle {
+    fill: #161616;
+    stroke: rgba(#f4f4f4, 0.3);
+    stroke-width: 2;
+  }
+
+  .tkn--login-node-done {
+    fill: $tkn-login-red;
+    stroke: rgba($tkn-login-red, 0.45);
+    stroke-width: 6;
+  }
+
+  @include breakpoint-down(md) {
+    display: none;
+  }
+}
+
+.tkn--login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-10 $spacing-07;
+
+  @include breakpoint-down(md) {
+    align-items: flex-start;
+    padding: $spacing-08 $spacing-05;
+  }
+}
+
+.tkn--login-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  inline-size: 100%;
+  max-inline-size: 22rem;
+
+  h1 {
+    @include type-style('productive-heading-05');
+
+    color: $text-primary;
+  }
+
+  .cds--inline-notification {
+    max-inline-size: none;
+  }
+}
+
+.tkn--login-subtitle {
+  @include type-style('body-01');
+
+  margin-block-end: $spacing-05;
+  color: $text-secondary;
+}
+
+.tkn--login-button.cds--btn,
+.tkn--login-button.cds--skeleton {
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
+.tkn--login-helper {
+  @include type-style('helper-text-01');
+
+  color: $text-helper;
+}
