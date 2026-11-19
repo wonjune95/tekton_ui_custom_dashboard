@@ -10,7 +10,7 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 | Upstream 기준 | [tektoncd/dashboard `v0.72.0`](https://github.com/tektoncd/dashboard/releases/tag/v0.72.0) |
 | 배포 버전 | `v0.72.0-custom-oidc` |
 | 이미지 | `harbor.114-110-181-178.nip.io/nnd/tekton-custom-dashboard:v0.72.0-custom-oidc` |
-| 운영 주소 | https://tekton.180-210-89-135.nip.io (Gitea OIDC 로그인) |
+| 운영 주소 | https://tekton.<cluster-domain> (Gitea OIDC 로그인) |
 
 ---
 
@@ -70,7 +70,7 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 | 항목 | 값 |
 |---|---|
 | Gitea OAuth 앱 | client_id `b6d505e4-…` (ArgoCD·NKS apiserver와 같은 앱) |
-| Redirect URL | `https://tekton.180-210-89-135.nip.io/oauth2/callback` (oauth2-proxy 시절 등록값 재사용) |
+| Redirect URL | `https://tekton.<cluster-domain>/oauth2/callback` (oauth2-proxy 시절 등록값 재사용) |
 | Secret | `tekton-dashboard-oidc` (`OIDC_CLIENT_SECRET`, `SESSION_KEY`) |
 | Gitea CA | ConfigMap `tekton-dashboard-oidc-ca` → `--oidc-ca-file=/etc/oidc-ca/ca.crt` (NND Internal CA, TLS 검증 유지) |
 | impersonate 권한 | ClusterRoleBinding `tekton-dashboard-impersonator` → SA `tekton-dashboard` |

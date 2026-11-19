@@ -79,7 +79,7 @@ k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서
 | `--oidc-issuer` | `""` | 비어 있으면 인증 OFF |
 | `--oidc-name` | `Gitea` | 로그인 버튼 문구("LOG IN VIA GITEA") |
 | `--oidc-client-id` | | |
-| `--oidc-redirect-url` | | 예: `https://tekton.180-210-89-135.nip.io/auth/callback`. 콜백은 이 URL의 경로에서 처리한다(2026-11-19 변경: oauth2-proxy의 `/oauth2/callback` 등록 재사용) |
+| `--oidc-redirect-url` | | 예: `https://tekton.<cluster-domain>/auth/callback`. 콜백은 이 URL의 경로에서 처리한다(2026-11-19 변경: oauth2-proxy의 `/oauth2/callback` 등록 재사용) |
 | `--oidc-username-claim` | `preferred_username` | |
 | `--oidc-groups-claim` | `groups` | |
 | `--oidc-username-prefix` | `""` | apiserver OIDC username prefix와 같은 값. username에 `:`가 들어 있으면 로그인 거부 |
@@ -122,7 +122,7 @@ k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서
 
 ## 6. 전환 절차 (클러스터)
 
-1. Gitea에 OAuth2 앱을 새로 등록한다(redirect `https://tekton.180-210-89-135.nip.io/auth/callback`). 이어서 Secret `tekton-dashboard-oidc`를 생성한다.
+1. Gitea에 OAuth2 앱을 새로 등록한다(redirect `https://tekton.<cluster-domain>/auth/callback`). 이어서 Secret `tekton-dashboard-oidc`를 생성한다.
 2. 새 이미지와 RBAC를 배포한다. 이 시점에는 oauth2-proxy가 앞에 있으므로 사용자 영향이 없다.
 3. (기존 바인딩이 이미 apiserver OIDC 규칙과 같으므로 바인딩 수정은 필요 없다.)
 4. `kubectl auth can-i ... --as=<user> --as-group=gitea:oauth_organization:<team>`으로 권한을 미리 확인한다.
