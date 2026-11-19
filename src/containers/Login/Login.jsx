@@ -20,9 +20,15 @@ import { ArrowRight } from '@carbon/react/icons';
 import { getAPIRoot } from '../../api/comms';
 import tektonLogo from '../../images/tekton-stacked-color.svg';
 
-// Same rule as the backend: only same-origin paths, never `//host` or `/\host`
+// Same rule as the backend: a same-origin path, never `//host`. Browsers drop
+// tab/newline and read `\` as `/`, so reject control chars, spaces and `\`.
 function safeReturn(path) {
-  return path?.startsWith('/') && !/^\/[/\\]/.test(path) ? path : '/';
+  return path?.startsWith('/') &&
+    !path.startsWith('//') &&
+    // eslint-disable-next-line no-control-regex
+    !/[\x00-\x20\x7f\\]/.test(path)
+    ? path
+    : '/';
 }
 
 // Decorative pipeline graph for the brand panel

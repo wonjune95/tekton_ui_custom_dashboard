@@ -144,10 +144,16 @@ describe('checkStatus', () => {
   describe('on 401', () => {
     afterEach(() => vi.unstubAllGlobals());
 
+    const loginRequired = {
+      get: name => (name === 'Tekton-Login' ? 'required' : null)
+    };
+
     it('sends the user to the login page and back afterwards', () => {
       const assign = vi.fn();
       vi.stubGlobal('location', { hash: '#/pipelineruns?x=1', assign });
-      expect(() => checkStatus({ status: 401 })).toThrow();
+      expect(() =>
+        checkStatus({ status: 401, headers: loginRequired })
+      ).toThrow();
       expect(assign).toHaveBeenCalledWith(
         `/#/login?return=${encodeURIComponent('/#/pipelineruns?x=1')}`
       );
@@ -156,6 +162,20 @@ describe('checkStatus', () => {
     it('does not redirect when already on the login page', () => {
       const assign = vi.fn();
       vi.stubGlobal('location', { hash: '#/login?return=%2F', assign });
+      expect(() =>
+        checkStatus({ status: 401, headers: loginRequired })
+      ).toThrow();
+      expect(assign).not.toHaveBeenCalled();
+    });
+
+    // e.g. the API server rejecting an auth proxy's expired token: redirecting
+    // would bounce between the page and /#/login forever
+    it('does not redirect for 401s that are not a Dashboard login request', () => {
+      const assign = vi.fn();
+      vi.stubGlobal('location', { hash: '#/pipelineruns', assign });
+      expect(() =>
+        checkStatus({ status: 401, headers: { get: () => null } })
+      ).toThrow();
       expect(() => checkStatus({ status: 401 })).toThrow();
       expect(assign).not.toHaveBeenCalled();
     });

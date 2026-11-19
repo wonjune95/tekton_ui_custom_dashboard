@@ -35,6 +35,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// LoginHeader marks 401 responses that mean "log in to the Dashboard", as
+// opposed to 401s passed through from the API server.
+const LoginHeader = "Tekton-Login"
+
 const (
 	sessionTTL = 24 * time.Hour
 	flowTTL    = 5 * time.Minute
@@ -56,6 +60,7 @@ type Config struct {
 	CAFile             string
 	InsecureSkipVerify bool
 	SessionKey         []byte
+	LogoutRedirect     string // where /auth/logout goes after clearing the session, default /#/login
 }
 
 // Auth serves the /auth/ endpoints and guards the rest of the Dashboard.
@@ -99,11 +104,16 @@ func New(ctx context.Context, cfg Config) (*Auth, error) {
 	if err != nil {
 		return nil, fmt.Errorf("oidc redirect url: %w", err)
 	}
-	// The callback is served at this path, so it must not shadow the web UI or
-	// another /auth/ endpoint. Reusing e.g. oauth2-proxy's /oauth2/callback is fine.
-	switch redirect.Path {
-	case "", "/", "/auth/login", "/auth/logout", "/auth/me":
-		return nil, fmt.Errorf("oidc redirect url path %q is not usable for the callback", redirect.Path)
+	// The callback is served at this path, so keep it out of the UI, probe and
+	// API routes. Reusing e.g. oauth2-proxy's /oauth2/callback is fine.
+	switch p := redirect.Path; {
+	case !strings.HasPrefix(p, "/auth/") && !strings.HasPrefix(p, "/oauth2/"),
+		p == "/auth/login", p == "/auth/logout", p == "/auth/me":
+		return nil, fmt.Errorf("oidc redirect url path %q must be under /auth/ or /oauth2/ and not an existing /auth/ endpoint", p)
+	}
+	// Session cookies are Secure; browsers only keep them over https (or localhost).
+	if redirect.Scheme != "https" && !isLocalhost(redirect.Hostname()) {
+		return nil, fmt.Errorf("oidc redirect url must use https, got %q", cfg.RedirectURL)
 	}
 
 	if cfg.UsernameClaim == "" {
@@ -147,6 +157,15 @@ func New(ctx context.Context, cfg Config) (*Auth, error) {
 	}, nil
 }
 
+func isLocalhost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func unauthorized(w http.ResponseWriter) {
+	w.Header().Set(LoginHeader, "required")
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+}
+
 func httpClient(cfg Config) (*http.Client, error) {
 	tlsConfig := &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify} //nolint:gosec // opt-in flag, mirrors ArgoCD's oidc.tls.insecure.skip.verify
 	if cfg.CAFile != "" {
@@ -181,7 +200,7 @@ func (a *Auth) Register(mux *http.ServeMux) {
 func (a *Auth) Require(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := a.session(r); !ok {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			unauthorized(w)
 			return
 		}
 		h.ServeHTTP(w, r)
@@ -194,7 +213,7 @@ func (a *Auth) Impersonate(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s, ok := a.session(r)
 		if !ok {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			unauthorized(w)
 			return
 		}
 		StripIdentityHeaders(r.Header)
@@ -338,7 +357,11 @@ func (a *Auth) userInfoGroups(ctx context.Context, tok *oauth2.Token) ([]string,
 
 func (a *Auth) logout(w http.ResponseWriter, r *http.Request) {
 	setCookie(w, sessionCookie, "", -1)
-	http.Redirect(w, r, "/#/login", http.StatusFound)
+	target := a.cfg.LogoutRedirect
+	if target == "" {
+		target = "/#/login"
+	}
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 func (a *Auth) me(w http.ResponseWriter, r *http.Request) {

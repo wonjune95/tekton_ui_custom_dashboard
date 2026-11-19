@@ -84,9 +84,17 @@ func (s *sealer) open(name, value string, v any) error {
 }
 
 // safeReturn only allows same-origin absolute paths, preventing open redirects.
+// Browsers drop tab/newline and treat \ as / while parsing URLs, so
+// "/\t/evil" or "/\\evil" would become "//evil": reject control characters,
+// spaces and backslashes anywhere.
 func safeReturn(p string) string {
-	if !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") || strings.HasPrefix(p, "/\\") {
+	if !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") {
 		return "/"
+	}
+	for _, c := range p {
+		if c <= ' ' || c == 0x7f || c == '\\' {
+			return "/"
+		}
 	}
 	return p
 }
@@ -102,10 +110,16 @@ func StripIdentityHeaders(h http.Header) {
 	}
 }
 
-// StripIdentity wraps h so client-supplied identity headers never reach it.
+// StripIdentity is used when OIDC login is off. Requests carrying their own
+// Authorization (upstream's auth-proxy mode) pass untouched: the API server
+// checks any impersonation against those credentials. Without Authorization
+// the Dashboard's service account token is used, so Impersonate-* headers are
+// dropped in case that service account holds the impersonate permission.
 func StripIdentity(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		StripIdentityHeaders(r.Header)
+		if r.Header.Get("Authorization") == "" {
+			StripIdentityHeaders(r.Header)
+		}
 		h.ServeHTTP(w, r)
 	})
 }

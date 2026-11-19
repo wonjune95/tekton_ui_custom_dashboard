@@ -119,6 +119,15 @@ kubectl -n tekton-pipelines get deploy tekton-dashboard -o json \
 * 로그인을 끄면 접속하는 누구나 대시보드 SA 권한으로 동작합니다. 앞단에 다른 인증을 두거나 내부망에서만 쓰세요.
 * 로그인이 꺼져 있어도 클라이언트가 보낸 `Impersonate-*` 헤더는 항상 제거됩니다. 오래 끈 채로 쓸 거라면 impersonate 권한(`config/oidc-impersonator.yaml`)도 회수하는 편이 깔끔합니다.
 * 화면에서 켜고 끄는 스위치는 일부러 두지 않았습니다.
+* 로그인이 꺼진 상태에서 앞단 프록시가 `Authorization`을 넘기면(upstream의 oauth2-proxy·impersonation 프록시 방식) 헤더를 그대로 전달합니다.
+
+**제약 사항**
+
+* 대시보드는 도메인 루트(`https://<host>/`)에서 서비스해야 합니다. 경로 prefix(`/tekton/`) 배포는 지원하지 않습니다.
+* `--external-logs`와 함께 쓸 수 없습니다(시작 시 에러). 외부 로그 프록시는 사용자별 RBAC를 적용할 수 없기 때문입니다.
+* `--logout-url`을 지정하면 세션을 지운 뒤 그 주소로 이동합니다(예: IdP 로그아웃 URL). 지정하지 않으면 로그인 화면으로 이동합니다.
+* `--oidc-redirect-url`은 https여야 하고(localhost 제외), 경로는 `/auth/` 또는 `/oauth2/` 아래여야 합니다.
+* 세션은 24시간이며 서버에서 강제로 만료시킬 수 없습니다. Gitea 팀에서 사용자를 빼도 다시 로그인할 때까지는 이전 권한이 유지됩니다. 전원을 즉시 로그아웃시키려면 Secret의 `SESSION_KEY`를 바꾸고 재시작하세요.
 
 </details>
 

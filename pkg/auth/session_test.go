@@ -75,6 +75,11 @@ func TestSafeReturn(t *testing.T) {
 		"/\\evil.com":     "/",
 		"https://evil":    "/",
 		"evil":            "/",
+		// browsers drop tab/newline while parsing, turning these into //evil
+		"/\t/evil.example": "/",
+		"/\n/evil.example": "/",
+		"/#/x\\y":          "/",
+		"/#/x\x7f":         "/",
 	} {
 		if got := safeReturn(in); got != want {
 			t.Errorf("safeReturn(%q) = %q, want %q", in, got, want)

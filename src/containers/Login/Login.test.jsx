@@ -100,6 +100,22 @@ describe('Login', () => {
     const assign = vi.fn();
     renderWithRouter(<Login />, {
       path: '/login',
+      route: `/login?return=${encodeURIComponent('/\t/evil.example')}`
+    });
+    // after render: the router and the /auth/me request use the real location
+    stubLocation(assign);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'));
+  });
+
+  it('never follows a protocol-relative return path', async () => {
+    server.use(
+      http.get(/\/auth\/me$/, () =>
+        HttpResponse.json({ user: 'alice', groups: [] })
+      )
+    );
+    const assign = vi.fn();
+    renderWithRouter(<Login />, {
+      path: '/login',
       route: `/login?return=${encodeURIComponent('//evil.example')}`
     });
     // after render: the router and the /auth/me request use the real location

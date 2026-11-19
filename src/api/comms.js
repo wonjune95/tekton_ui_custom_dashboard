@@ -94,8 +94,14 @@ export function checkStatus(response = {}, stream = false) {
     }
   }
 
-  // OIDC login enabled and no (valid) session: go log in, then come back here
-  if (response.status === 401 && !window.location.hash.startsWith('#/login')) {
+  // OIDC login enabled and no (valid) session: go log in, then come back here.
+  // Only for the Dashboard's own marker, not 401s from the API server, which
+  // would otherwise bounce between the page and the login page forever.
+  if (
+    response.status === 401 &&
+    response.headers?.get('Tekton-Login') === 'required' &&
+    !window.location.hash.startsWith('#/login')
+  ) {
     const returnTo = `/${window.location.hash || '#/'}`;
     window.location.assign(`/#/login?return=${encodeURIComponent(returnTo)}`);
   }

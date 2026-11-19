@@ -217,10 +217,14 @@ func TestNewRejectsIncompleteConfig(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
 		"redirect without path":  func(c *Config) { c.RedirectURL = "https://dashboard.example/" },
 		"redirect on login path": func(c *Config) { c.RedirectURL = "https://dashboard.example/auth/login" },
-		"no secret":              func(c *Config) { c.ClientSecret = "" },
-		"no redirect":            func(c *Config) { c.RedirectURL = "" },
-		"no groups prefix":       func(c *Config) { c.GroupsPrefix = "" },
-		"short key":              func(c *Config) { c.SessionKey = testKey[:16] },
+		"redirect on probe path": func(c *Config) { c.RedirectURL = "https://dashboard.example/health" },
+		"redirect on api path":   func(c *Config) { c.RedirectURL = "https://dashboard.example/apis/callback" },
+		// Secure cookies are dropped over plain http, login could never finish
+		"plain http redirect": func(c *Config) { c.RedirectURL = "http://dashboard.example/auth/callback" },
+		"no secret":           func(c *Config) { c.ClientSecret = "" },
+		"no redirect":         func(c *Config) { c.RedirectURL = "" },
+		"no groups prefix":    func(c *Config) { c.GroupsPrefix = "" },
+		"short key":           func(c *Config) { c.SessionKey = testKey[:16] },
 	} {
 		cfg := testConfig(idp.srv.URL)
 		mutate(&cfg)
@@ -319,6 +323,31 @@ func TestMeWithoutSession(t *testing.T) {
 	}
 }
 
+func TestNewAllowsHTTPForLocalhost(t *testing.T) {
+	idp := newFakeIdP(t)
+	cfg := testConfig(idp.srv.URL)
+	cfg.RedirectURL = "http://localhost:8000/auth/callback"
+	if _, err := New(context.Background(), cfg); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLogoutContinuesToConfiguredURL(t *testing.T) {
+	idp := newFakeIdP(t)
+	cfg := testConfig(idp.srv.URL)
+	cfg.LogoutRedirect = "https://idp.example/logout"
+	a, err := New(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	a.Register(mux)
+	rec := serve(mux, "/auth/logout")
+	if rec.Header().Get("Location") != "https://idp.example/logout" || cookie(t, rec, sessionCookie).MaxAge >= 0 {
+		t.Fatalf("logout: %v", rec.Header())
+	}
+}
+
 func TestLogoutClearsSession(t *testing.T) {
 	idp := newFakeIdP(t)
 	_, mux := newTestAuth(t, idp)
@@ -383,8 +412,14 @@ func TestGuardsRejectMissingOrExpiredSession(t *testing.T) {
 	valid := sessionCookieFor(t, a, Session{User: "alice", Exp: time.Now().Add(time.Hour).Unix()})
 
 	for name, h := range map[string]http.Handler{"Require": a.Require(ok), "Impersonate": a.Impersonate(ok)} {
-		if rec := serve(h, "/v1/properties"); rec.Code != http.StatusUnauthorized {
+		rec := serve(h, "/v1/properties")
+		if rec.Code != http.StatusUnauthorized {
 			t.Errorf("%s without cookie: %d", name, rec.Code)
+		}
+		// The UI only redirects to the login page for 401s carrying this marker,
+		// not for 401s coming from the API server itself.
+		if rec.Header().Get(LoginHeader) != "required" {
+			t.Errorf("%s 401 without %s header", name, LoginHeader)
 		}
 		if rec := serve(h, "/v1/properties", expired); rec.Code != http.StatusUnauthorized {
 			t.Errorf("%s with expired cookie: %d", name, rec.Code)

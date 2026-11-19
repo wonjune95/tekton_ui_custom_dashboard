@@ -92,6 +92,12 @@ func main() {
 
 	var authenticator *auth.Auth
 	if *oidcIssuer != "" {
+		if *externalLogs != "" {
+			// ponytail: the logs proxy fetches with the Dashboard's own access, so it
+			// would bypass per-user RBAC; add a SubjectAccessReview check per request
+			// if external logs are ever needed together with OIDC login.
+			logging.Log.Fatal("--external-logs is not supported together with --oidc-issuer")
+		}
 		sessionKey, err := base64.StdEncoding.DecodeString(os.Getenv("SESSION_KEY"))
 		if err != nil {
 			logging.Log.Fatalf("SESSION_KEY must be base64 encoded: %s", err.Error())
@@ -109,6 +115,7 @@ func main() {
 			CAFile:             *oidcCAFile,
 			InsecureSkipVerify: *oidcInsecure,
 			SessionKey:         sessionKey,
+			LogoutRedirect:     *logoutURL, // e.g. the IdP's end-session URL
 		})
 		if err != nil {
 			logging.Log.Fatalf("Error configuring OIDC login: %s", err.Error())

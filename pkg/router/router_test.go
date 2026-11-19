@@ -54,6 +54,31 @@ func TestProxyStripsClientIdentityWithoutAuth(t *testing.T) {
 	}
 }
 
+// Upstream auth-proxy mode: the proxy sends its own credentials plus
+// impersonation headers. With a client Authorization header the API server
+// checks impersonation against those credentials, so they pass untouched.
+func TestProxyKeepsProxyCredentialsWithoutAuth(t *testing.T) {
+	logging.InitLogger("error", "console")
+	var got http.Header
+	apiServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+	}))
+	defer apiServer.Close()
+
+	server, err := Register(endpoints.Resource{}, &rest.Config{Host: apiServer.URL}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/apis/tekton.dev/v1/pipelineruns", nil)
+	req.Header.Set("Authorization", "Bearer proxy-token")
+	req.Header.Set("Impersonate-User", "alice")
+	server.handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got.Get("Authorization") != "Bearer proxy-token" || got.Get("Impersonate-User") != "alice" {
+		t.Fatalf("proxy credentials not forwarded: %v", got)
+	}
+}
+
 func TestProtectedRoutesRequireLogin(t *testing.T) {
 	logging.InitLogger("error", "console")
 	var issuer string
