@@ -98,7 +98,7 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 | 플래그 | 기본값 | 설명 |
 |---|---|---|
 | `--oidc-issuer` | | 설정 시 로그인 활성화 |
-| `--oidc-client-id` / `--oidc-redirect-url` | | 필수 |
+| `--oidc-client-id` / `--oidc-redirect-url` | | 필수. 콜백은 redirect URL의 경로에서 처리합니다. oauth2-proxy에서 넘어온다면 `https://<host>/oauth2/callback`를 그대로 써서 Gitea 등록을 재사용할 수 있습니다 |
 | `--oidc-name` | `Gitea` | 로그인 버튼 문구 |
 | `--oidc-username-prefix` | `""` | apiserver OIDC username prefix와 동일하게 설정. `:`가 들어간 username은 로그인 거부 |
 | `--oidc-groups-prefix` | `gitea:` | apiserver OIDC groups prefix와 동일하게 설정. 빈 값 불가(`system:masters` 사칭 방지) |
@@ -107,6 +107,18 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 | `--oidc-insecure-skip-verify` | `false` | 비상용 |
 
 필수 값이 하나라도 빠지면 대시보드가 시작되지 않습니다(fail closed).
+
+**켜기/끄기**는 `--oidc-issuer` 값으로만 전환합니다. 빈 값이면 로그인이 꺼지고, 나머지 `--oidc-*` 인자는 무시됩니다.
+
+```sh
+# 끄기 (켜기는 반대로 issuer URL을 다시 넣음)
+kubectl -n tekton-pipelines get deploy tekton-dashboard -o json \
+  | sed 's|--oidc-issuer=https://gitea.example.com|--oidc-issuer=|' | kubectl apply -f -
+```
+
+* 로그인을 끄면 접속하는 누구나 대시보드 SA 권한으로 동작합니다. 앞단에 다른 인증을 두거나 내부망에서만 쓰세요.
+* 로그인이 꺼져 있어도 클라이언트가 보낸 `Impersonate-*` 헤더는 항상 제거됩니다. 오래 끈 채로 쓸 거라면 impersonate 권한(`config/oidc-impersonator.yaml`)도 회수하는 편이 깔끔합니다.
+* 화면에서 켜고 끄는 스위치는 일부러 두지 않았습니다.
 
 </details>
 

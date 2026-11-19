@@ -61,6 +61,7 @@ type Config struct {
 // Auth serves the /auth/ endpoints and guards the rest of the Dashboard.
 type Auth struct {
 	cfg      Config
+	callback string // path of RedirectURL
 	sealer   *sealer
 	client   *http.Client
 	provider *oidc.Provider
@@ -94,6 +95,17 @@ func New(ctx context.Context, cfg Config) (*Auth, error) {
 		// privileged Kubernetes group.
 		return nil, errors.New("oidc groups prefix must not be empty")
 	}
+	redirect, err := url.Parse(cfg.RedirectURL)
+	if err != nil {
+		return nil, fmt.Errorf("oidc redirect url: %w", err)
+	}
+	// The callback is served at this path, so it must not shadow the web UI or
+	// another /auth/ endpoint. Reusing e.g. oauth2-proxy's /oauth2/callback is fine.
+	switch redirect.Path {
+	case "", "/", "/auth/login", "/auth/logout", "/auth/me":
+		return nil, fmt.Errorf("oidc redirect url path %q is not usable for the callback", redirect.Path)
+	}
+
 	if cfg.UsernameClaim == "" {
 		cfg.UsernameClaim = "preferred_username"
 	}
@@ -119,6 +131,7 @@ func New(ctx context.Context, cfg Config) (*Auth, error) {
 
 	return &Auth{
 		cfg:      cfg,
+		callback: redirect.Path,
 		sealer:   s,
 		client:   client,
 		provider: provider,
@@ -159,7 +172,7 @@ func httpClient(cfg Config) (*http.Client, error) {
 // Register adds the /auth/ endpoints to mux.
 func (a *Auth) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /auth/login", a.login)
-	mux.HandleFunc("GET /auth/callback", a.callback)
+	mux.HandleFunc("GET "+a.callback, a.handleCallback)
 	mux.HandleFunc("GET /auth/logout", a.logout)
 	mux.HandleFunc("GET /auth/me", a.me)
 }
@@ -224,7 +237,7 @@ func (a *Auth) login(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.oauth2.AuthCodeURL(f.State, oidc.Nonce(f.Nonce), oauth2.S256ChallengeOption(f.Verifier)), http.StatusFound)
 }
 
-func (a *Auth) callback(w http.ResponseWriter, r *http.Request) {
+func (a *Auth) handleCallback(w http.ResponseWriter, r *http.Request) {
 	fail := func(code string, err error) {
 		logging.Log.Warnf("auth: login failed (%s): %v", code, err)
 		setCookie(w, flowCookie, "", -1)

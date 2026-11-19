@@ -79,7 +79,7 @@ k8s 프록시 요청은 기존 `protectWebSocket` 래퍼 안에서 다음 순서
 | `--oidc-issuer` | `""` | 비어 있으면 인증 OFF |
 | `--oidc-name` | `Gitea` | 로그인 버튼 문구("LOG IN VIA GITEA") |
 | `--oidc-client-id` | | |
-| `--oidc-redirect-url` | | 예: `https://tekton.180-210-89-135.nip.io/auth/callback` |
+| `--oidc-redirect-url` | | 예: `https://tekton.180-210-89-135.nip.io/auth/callback`. 콜백은 이 URL의 경로에서 처리한다(2026-11-19 변경: oauth2-proxy의 `/oauth2/callback` 등록 재사용) |
 | `--oidc-username-claim` | `preferred_username` | |
 | `--oidc-groups-claim` | `groups` | |
 | `--oidc-username-prefix` | `""` | apiserver OIDC username prefix와 같은 값. username에 `:`가 들어 있으면 로그인 거부 |

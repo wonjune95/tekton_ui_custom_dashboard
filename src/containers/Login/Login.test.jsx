@@ -77,6 +77,20 @@ describe('Login', () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/#/pipelineruns'));
   });
 
+  it('leaves the page when login is disabled', async () => {
+    server.use(
+      http.get(/\/auth\/me$/, () => new HttpResponse(null, { status: 404 }))
+    );
+    const assign = vi.fn();
+    renderWithRouter(<Login />, {
+      path: '/login',
+      route: '/login?return=%2F%23%2Fpipelineruns'
+    });
+    // after render: the router and the /auth/me request use the real location
+    stubLocation(assign);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/#/pipelineruns'));
+  });
+
   it('never follows a return path to another origin', async () => {
     server.use(
       http.get(/\/auth\/me$/, () =>

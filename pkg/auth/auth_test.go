@@ -193,18 +193,44 @@ func login(t *testing.T, idp *fakeIdP, mux http.Handler, tamperState bool) *http
 	return serve(mux, "/auth/callback?code=c&state="+url.QueryEscape(state), cookie(t, rec, flowCookie))
 }
 
+// The callback is served at the redirect URL's path, so an existing
+// registration such as oauth2-proxy's /oauth2/callback can be reused.
+func TestCallbackServedAtRedirectURLPath(t *testing.T) {
+	idp := newFakeIdP(t)
+	cfg := testConfig(idp.srv.URL)
+	cfg.RedirectURL = "https://dashboard.example/oauth2/callback"
+	a, err := New(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	a.Register(mux)
+
+	rec := serve(mux, "/oauth2/callback?code=c&state=s")
+	if loc := rec.Header().Get("Location"); loc != "/#/login?error=invalid_state" {
+		t.Fatalf("callback not served at /oauth2/callback: %d %q", rec.Code, loc)
+	}
+}
+
 func TestNewRejectsIncompleteConfig(t *testing.T) {
+	idp := newFakeIdP(t)
 	for name, mutate := range map[string]func(*Config){
-		"no secret":        func(c *Config) { c.ClientSecret = "" },
-		"no redirect":      func(c *Config) { c.RedirectURL = "" },
-		"no groups prefix": func(c *Config) { c.GroupsPrefix = "" },
-		"short key":        func(c *Config) { c.SessionKey = testKey[:16] },
+		"redirect without path":  func(c *Config) { c.RedirectURL = "https://dashboard.example/" },
+		"redirect on login path": func(c *Config) { c.RedirectURL = "https://dashboard.example/auth/login" },
+		"no secret":              func(c *Config) { c.ClientSecret = "" },
+		"no redirect":            func(c *Config) { c.RedirectURL = "" },
+		"no groups prefix":       func(c *Config) { c.GroupsPrefix = "" },
+		"short key":              func(c *Config) { c.SessionKey = testKey[:16] },
 	} {
-		cfg := testConfig("https://unused.example")
+		cfg := testConfig(idp.srv.URL)
 		mutate(&cfg)
 		if _, err := New(context.Background(), cfg); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
+	}
+	// guard against the cases passing for an unrelated reason
+	if _, err := New(context.Background(), testConfig(idp.srv.URL)); err != nil {
+		t.Fatalf("valid config rejected: %v", err)
 	}
 }
 

@@ -96,7 +96,8 @@ export default function Login() {
       credentials: 'same-origin'
     })
       .then(async response => {
-        if (response.ok) {
+        // 200: already logged in, 404: login disabled (no --oidc-issuer)
+        if (response.ok || response.status === 404) {
           window.location.assign(returnTo);
           return;
         }
