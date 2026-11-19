@@ -54,6 +54,8 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 
 ### 6. OIDC 로그인 (ArgoCD 방식)
 
+![OIDC 로그인 화면](docs/login-page.jpg)
+
 * `--oidc-issuer`를 설정하면 대시보드 자체 로그인 화면이 생깁니다. ArgoCD처럼 좌우 분할 화면에 **Gitea(으)로 로그인** 버튼이 있고, 다크 모드와 모바일 화면에 맞춰 바뀝니다.
 * 헤더에 로그인한 사용자 이름과 로그아웃 버튼이 표시됩니다.
 * 로그인한 사용자의 k8s API 요청은 **Impersonation**으로 처리합니다. 사용자는 `<username>`, 그룹은 `gitea:<group>`으로 요청합니다.
