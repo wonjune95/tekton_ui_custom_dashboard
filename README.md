@@ -12,6 +12,16 @@ Tekton Dashboard는 [Tekton Pipelines](https://github.com/tektoncd/pipeline)와
 | 이미지 | `harbor.114-110-181-178.nip.io/nnd/tekton-custom-dashboard:v0.72.0-custom-oidc` |
 | 운영 주소 | https://tekton.<cluster-domain> (Gitea OIDC 로그인) |
 
+### 버전
+
+| git 태그 | 이미지 태그 | 내용 |
+|---|---|---|
+| `v0.72.0-custom-oidc` | `v0.72.0-custom-oidc` | 아래 1~6 전체. Gitea OIDC 로그인 + 사용자별 k8s 권한(impersonation) — **현재 운영** |
+| `v0.72.0-custom` | `v0.72.0-custom` | 아래 1~5. 로그인 없음(앞단 인증은 oauth2-proxy 등 별도 구성) |
+| `v0.61-custom-backup` | – | v0.61 기반 이전 커스텀 백업 |
+
+특정 버전의 코드는 `git checkout <git 태그>`로 받을 수 있습니다. 로그인 기능은 `v0.72.0-custom-oidc` 이미지에서도 `--oidc-issuer`를 비우면 끌 수 있습니다(6번 참고).
+
 ---
 
 ## 주요 변경 사항 (Custom Features)
