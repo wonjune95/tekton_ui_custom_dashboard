@@ -274,7 +274,7 @@ spec:
             type: string
         steps:
           - name: create-results
-            image: docker.io/library/alpine:3.20.3@sha256:beefdbd8a1da6d2915566fde36db9db0b524eb737fc57cd1367effd16dc0d06d
+            image: docker.io/library/alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
             env:
               - name: RELEASE_BUCKET
                 value: $(params.releaseBucket)
